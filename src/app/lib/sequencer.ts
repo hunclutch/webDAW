@@ -115,33 +115,31 @@ export class Sequencer {
   }
 
   private scheduleNotesForTrack(track: Track, currentTime: number, endTime: number, audioTime: number) {
-    const secondsPerBeat = 60 / this.bpm;
-    const beatsPerSecond = this.bpm / 60;
-    const currentBeat = currentTime * beatsPerSecond;
-    const endBeat = endTime * beatsPerSecond;
+    // ノートのstart/durationは16分音符ステップ単位で保存されている
+    const secondsPer16thNote = (60 / this.bpm) / 4; // 16分音符の長さ
+    const stepsPerSecond = 1 / secondsPer16thNote;
+    const currentStep = currentTime * stepsPerSecond;
+    const endStep = endTime * stepsPerSecond;
     
     track.notes.forEach(note => {
-      const noteStartBeat = note.start;
-      const noteEndBeat = note.start + note.duration;
+      const noteStartStep = note.start;
       
       // Check if note should be playing in the current time window
-      if (noteStartBeat >= currentBeat && noteStartBeat < endBeat) {
-        const noteStartTime = audioTime + (noteStartBeat - currentBeat) / beatsPerSecond;
+      if (noteStartStep >= currentStep && noteStartStep < endStep) {
+        const noteStartTime = audioTime + (noteStartStep - currentStep) * secondsPer16thNote;
+        const noteDuration = note.duration * secondsPer16thNote;
         
-        // Schedule note immediately or with small delay
-        const delay = Math.max(0, (noteStartTime - audioTime) * 1000);
-        
-        setTimeout(() => {
-          if (this.isPlaying) {
-            this.synthesizer.playNote(
-              note.note,
-              note.octave,
-              note.velocity,
-              note.duration / beatsPerSecond,
-              track.synthSettings
-            );
-          }
-        }, delay);
+        // Use Web Audio API scheduling instead of setTimeout
+        if (this.isPlaying && noteStartTime >= this.audioContext.currentTime) {
+          this.synthesizer.playNote(
+            note.note,
+            note.octave,
+            note.velocity,
+            noteDuration,
+            track.synthSettings,
+            noteStartTime
+          );
+        }
       }
     });
   }
@@ -149,49 +147,46 @@ export class Sequencer {
   private scheduleDrumPatternForTrack(track: Track, currentTime: number, endTime: number, audioTime: number) {
     if (!track.drumPattern) return;
     
-    const secondsPerStep = (60 / this.bpm) / 4; // 16th notes
-    const stepsPerSecond = 1 / secondsPerStep;
+    const secondsPer16thNote = (60 / this.bpm) / 4; // 16th notes
+    const stepsPerSecond = 1 / secondsPer16thNote;
     const patternLength = track.drumPattern.length;
     
-    const currentStep = (currentTime * stepsPerSecond) % patternLength;
-    const endStep = (endTime * stepsPerSecond) % patternLength;
+    const currentStep = Math.floor(currentTime * stepsPerSecond);
+    const endStep = Math.floor(endTime * stepsPerSecond);
     
-    // Handle pattern looping
-    const steps = currentStep < endStep ? 
-      Array.from({length: Math.floor(endStep - currentStep)}, (_, i) => Math.floor(currentStep + i) % patternLength) :
-      Array.from({length: patternLength - Math.floor(currentStep)}, (_, i) => Math.floor(currentStep + i) % patternLength);
-    
-    steps.forEach(step => {
-      const stepStartTime = currentTime + (step - currentStep) * secondsPerStep;
-      const delay = Math.max(0, (stepStartTime - currentTime) * 1000);
+    // Handle pattern looping properly
+    for (let absoluteStep = currentStep; absoluteStep < endStep; absoluteStep++) {
+      const patternStep = absoluteStep % patternLength;
+      const stepStartTime = audioTime + (absoluteStep - currentStep) * secondsPer16thNote;
       
-      setTimeout(() => {
-        if (this.isPlaying) {
-          this.drumMachine.playPattern(track.drumPattern!, step);
-        }
-      }, delay);
-    });
+      // Use Web Audio API scheduling instead of setTimeout
+      if (this.isPlaying && stepStartTime >= this.audioContext.currentTime) {
+        this.drumMachine.playPatternAtTime(track.drumPattern!, patternStep, stepStartTime);
+      }
+    }
   }
 
   private startPlayheadUpdate() {
     this.intervalId = window.setInterval(() => {
       if (this.isPlaying) {
-        const beatsPerSecond = this.bpm / 60;
-        const totalBeats = this.getCurrentTime() * beatsPerSecond;
-        const maxBeats = this.maxMeasures * 4; // 各小節4ビート
+        // playheadPositionは16分音符ステップ単位で管理
+        const secondsPer16thNote = (60 / this.bpm) / 4;
+        const stepsPerSecond = 1 / secondsPer16thNote;
+        const totalSteps = this.getCurrentTime() * stepsPerSecond;
+        const maxSteps = this.maxMeasures * 16; // 各小節16ステップ（16分音符）
         
         // 最大小節数に達したら停止
-        if (totalBeats >= maxBeats) {
+        if (totalSteps >= maxSteps) {
           this.stop();
           return;
         }
         
-        this.playheadPosition = totalBeats;
+        this.playheadPosition = totalSteps;
         
         // Continue scheduling upcoming notes
         this.scheduleTracksPlayback();
       }
-    }, 50); // Update every 50ms
+    }, 25); // Update every 25ms for better precision
   }
 
   private stopAllActiveNotes() {

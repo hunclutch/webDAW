@@ -30,6 +30,22 @@ export class DrumMachine {
     source.start();
   }
 
+  async playDrumSoundAtTime(drumType: string, velocity: number = 1, when: number) {
+    const buffer = await this.generateDrumSound(drumType);
+    if (!buffer) return;
+
+    const source = this.audioContext.createBufferSource();
+    const gainNode = this.audioContext.createGain();
+
+    source.buffer = buffer;
+    gainNode.gain.value = velocity * 0.5;
+
+    source.connect(gainNode);
+    gainNode.connect(this.masterGain);
+
+    source.start(when);
+  }
+
   async playPattern(pattern: DrumPattern, stepIndex: number) {
     const step = pattern.steps[stepIndex];
     if (!step) return;
@@ -39,6 +55,17 @@ export class DrumMachine {
     if (step.hihat) await this.playDrumSound('hihat', step.velocity);
     if (step.openhat) await this.playDrumSound('openhat', step.velocity);
     if (step.crash) await this.playDrumSound('crash', step.velocity);
+  }
+
+  async playPatternAtTime(pattern: DrumPattern, stepIndex: number, when: number) {
+    const step = pattern.steps[stepIndex];
+    if (!step) return;
+
+    if (step.kick) await this.playDrumSoundAtTime('kick', step.velocity, when);
+    if (step.snare) await this.playDrumSoundAtTime('snare', step.velocity, when);
+    if (step.hihat) await this.playDrumSoundAtTime('hihat', step.velocity, when);
+    if (step.openhat) await this.playDrumSoundAtTime('openhat', step.velocity, when);
+    if (step.crash) await this.playDrumSoundAtTime('crash', step.velocity, when);
   }
 
   async generateDrumSound(drumType: string): Promise<AudioBuffer | null> {

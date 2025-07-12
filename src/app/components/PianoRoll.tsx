@@ -11,7 +11,6 @@ interface PianoRollProps {
   playheadPosition: number;
   measures?: number;
   onMeasuresChange?: (measures: number) => void;
-  onSwitchToSimpleView?: () => void;
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -30,7 +29,6 @@ export default function PianoRoll({
   playheadPosition,
   measures = INITIAL_MEASURES,
   onMeasuresChange,
-  onSwitchToSimpleView,
 }: PianoRollProps) {
   // const [selectedNote, setSelectedNote] = useState<string | null>(null); // 未使用のためコメントアウト
   const [isDrawing, setIsDrawing] = useState(false);
@@ -306,14 +304,6 @@ export default function PianoRoll({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-white font-medium">Piano Roll</h3>
         <div className="flex items-center space-x-2">
-          {onSwitchToSimpleView && (
-            <button
-              onClick={onSwitchToSimpleView}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
-            >
-              Simple View
-            </button>
-          )}
           {onMeasuresChange && (
             <div className="flex items-center space-x-2">
               <label className="text-sm text-gray-400">Measures:</label>
@@ -336,12 +326,16 @@ export default function PianoRoll({
         </div>
       </div>
 
-      <div className="flex h-96">
+      <div className="flex" style={{ height: '400px' }}>
         {/* Piano Keys */}
         <div 
-          className="flex flex-col overflow-y-auto" 
+          className="flex flex-col overflow-y-auto bg-gray-700" 
           ref={scrollContainerRef}
           onScroll={handleScroll}
+          style={{ 
+            minWidth: '64px',
+            width: '64px'
+          }}
         >
           {[...OCTAVES].reverse().map(octave =>
             [...NOTES].reverse().map(note => {
@@ -351,14 +345,18 @@ export default function PianoRoll({
                 <button
                   key={`${note}${octave}`}
                   onClick={() => handleKeyClick(note, octave)}
-                  className={`w-16 h-5 border border-gray-600 text-xs font-mono flex items-center justify-center transition-colors ${
+                  className={`w-16 border border-gray-600 text-xs font-mono flex items-center justify-center transition-colors flex-shrink-0 ${
                     isC4
                       ? 'bg-blue-500 text-white border-blue-400'
                       : isBlack
                       ? 'bg-gray-900 text-white hover:bg-gray-700'
                       : 'bg-white text-black hover:bg-gray-100'
                   }`}
-                  style={{ height: `${CELL_HEIGHT}px` }}
+                  style={{ 
+                    height: `${CELL_HEIGHT}px`,
+                    minHeight: `${CELL_HEIGHT}px`,
+                    maxHeight: `${CELL_HEIGHT}px`
+                  }}
                 >
                   {note}{octave}
                 </button>

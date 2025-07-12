@@ -419,7 +419,6 @@ export default function Home() {
               <div className="p-4 text-center text-gray-400 track-area-empty">
                 <p>No tracks yet</p>
                 <p className="text-sm mt-2">Click + Track to get started</p>
-                <p className="text-xs mt-4 opacity-60">Double-click here for simple view</p>
               </div>
             ) : (
               <div className="space-y-1 p-2">
@@ -427,20 +426,42 @@ export default function Home() {
                   <div
                     key={track.id}
                     className={`p-3 rounded cursor-pointer transition-all hover:bg-gray-700 ${
-                      selectedTrackId === track.id ? 'bg-blue-600' : 'bg-gray-750'
+                      selectedTrackId === track.id 
+                        ? showPianoRoll 
+                          ? 'bg-blue-600 border-l-4 border-blue-300' 
+                          : 'bg-green-600 border-l-4 border-green-300'
+                        : 'bg-gray-750'
                     }`}
                     onClick={() => {
-                      setSelectedTrackId(track.id);
-                      // トラックタイプに応じてタブを切り替える
-                      if (track.type === 'synth') setActiveTab('pianoroll');
-                      if (track.type === 'drum') setActiveTab('drums');
-                      setShowPianoRoll(true);
+                      // 既に選択されているトラックの場合はビューを切り替え
+                      if (selectedTrackId === track.id) {
+                        if (showPianoRoll) {
+                          // 詳細ビューから簡易ビューに切り替え
+                          setSelectedTrackId(null);
+                          setShowPianoRoll(false);
+                        } else {
+                          // 簡易ビューから詳細ビューに切り替え
+                          setShowPianoRoll(true);
+                        }
+                      } else {
+                        // 新しいトラックを選択
+                        setSelectedTrackId(track.id);
+                        // トラックタイプに応じてタブを切り替える
+                        if (track.type === 'synth') setActiveTab('pianoroll');
+                        if (track.type === 'drum') setActiveTab('drums');
+                        setShowPianoRoll(true);
+                      }
                     }}
                   >
                     <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-sm">{track.name}</div>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm hover:text-blue-300 transition-colors">{track.name}</div>
                         <div className="text-xs text-gray-400 capitalize">{track.type}</div>
+                        {selectedTrackId === track.id && (
+                          <div className="text-xs text-blue-300 mt-1">
+                            {showPianoRoll ? 'Click to switch to simple view' : 'Click to switch to detail view'}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center space-x-1">
                         <button
@@ -491,7 +512,7 @@ export default function Home() {
                   className="p-4 text-center text-gray-500 text-xs opacity-60 track-area-empty"
                   style={{ minHeight: '100px' }}
                 >
-                  Double-click here for simple view
+                  Click track names to switch views
                 </div>
               </div>
             )}
@@ -516,19 +537,6 @@ export default function Home() {
                       </div>
                     ) : (
                       <>
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log('Simple View button clicked from track editor! Current showPianoRoll:', showPianoRoll);
-                            setSelectedTrackId(null); // トラック選択を解除
-                            setShowPianoRoll(false); // シンプルビューに切り替え
-                            console.log('Deselected track and set showPianoRoll to false');
-                          }}
-                          className="px-3 py-1 text-sm rounded bg-red-600 hover:bg-red-700 text-white"
-                        >
-                          Simple View
-                        </button>
                         {selectedTrack.type === 'synth' && (
                           <div className="px-3 py-1 text-sm text-gray-400">
                             {selectedTrack.name} - Piano Roll
@@ -624,11 +632,6 @@ export default function Home() {
                         playheadPosition={playheadPosition}
                         measures={measures}
                         onMeasuresChange={setMeasures}
-                        onSwitchToSimpleView={() => {
-                          console.log('Switching to simple view from PianoRoll component');
-                          setSelectedTrackId(null);
-                          setShowPianoRoll(false);
-                        }}
                       />
                     )}
                     

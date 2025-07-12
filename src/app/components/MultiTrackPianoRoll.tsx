@@ -362,12 +362,16 @@ export default function MultiTrackPianoRoll({
         </div>
       </div>
 
-      <div className="flex h-96">
+      <div className="flex" style={{ height: '400px' }}>
         {/* Piano Keys */}
         <div 
-          className="flex flex-col overflow-y-auto" 
+          className="flex flex-col overflow-y-auto bg-gray-700" 
           ref={scrollContainerRef}
           onScroll={handleScroll}
+          style={{ 
+            minWidth: '64px',
+            width: '64px'
+          }}
         >
           {[...OCTAVES].reverse().map(octave =>
             [...NOTES].reverse().map(note => {
@@ -377,14 +381,18 @@ export default function MultiTrackPianoRoll({
                 <button
                   key={`${note}${octave}`}
                   onClick={() => handleKeyClick(note, octave)}
-                  className={`w-16 h-5 border border-gray-600 text-xs font-mono flex items-center justify-center transition-colors ${
+                  className={`w-16 border border-gray-600 text-xs font-mono flex items-center justify-center transition-colors flex-shrink-0 ${
                     isC4
                       ? 'bg-blue-500 text-white border-blue-400'
                       : isBlack
                       ? 'bg-gray-900 text-white hover:bg-gray-700'
                       : 'bg-white text-black hover:bg-gray-100'
                   }`}
-                  style={{ height: `${CELL_HEIGHT}px` }}
+                  style={{ 
+                    height: `${CELL_HEIGHT}px`,
+                    minHeight: `${CELL_HEIGHT}px`,
+                    maxHeight: `${CELL_HEIGHT}px`
+                  }}
                 >
                   {note}{octave}
                 </button>

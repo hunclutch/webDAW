@@ -17,10 +17,12 @@ export class Synthesizer {
     octave: number,
     velocity: number = 1,
     duration?: number,
-    settings: SynthSettings = this.getDefaultSettings()
+    settings: SynthSettings = this.getDefaultSettings(),
+    startTime?: number
   ) {
     const frequency = this.noteToFrequency(note, octave);
     const noteKey = `${note}${octave}`;
+    const when = startTime || this.audioContext.currentTime;
     
     // Stop existing note if playing
     if (this.activeNotes.has(noteKey)) {
@@ -29,14 +31,12 @@ export class Synthesizer {
 
     const voice = new SynthVoice(this.audioContext, settings);
     voice.connect(this.masterGain);
-    voice.start(frequency, velocity);
+    voice.start(frequency, velocity, when);
     
     this.activeNotes.set(noteKey, voice);
 
     if (duration) {
-      setTimeout(() => {
-        this.stopNote(note, octave);
-      }, duration * 1000);
+      voice.stop(when + duration);
     }
   }
 
@@ -125,37 +125,34 @@ class SynthVoice {
     this.gainNode.connect(destination);
   }
 
-  start(frequency: number, velocity: number) {
+  start(frequency: number, velocity: number, when: number = this.audioContext.currentTime) {
     if (this.isPlaying) return;
     
-    this.oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+    this.oscillator.frequency.setValueAtTime(frequency, when);
     
-    const now = this.audioContext.currentTime;
     const maxGain = velocity * 0.3; // Limit max volume
     
     // ADSR Envelope
-    this.gainNode.gain.setValueAtTime(0, now);
-    this.gainNode.gain.linearRampToValueAtTime(maxGain, now + this.settings.attack);
+    this.gainNode.gain.setValueAtTime(0, when);
+    this.gainNode.gain.linearRampToValueAtTime(maxGain, when + this.settings.attack);
     this.gainNode.gain.linearRampToValueAtTime(
       maxGain * this.settings.sustain,
-      now + this.settings.attack + this.settings.decay
+      when + this.settings.attack + this.settings.decay
     );
     
-    this.oscillator.start(now);
+    this.oscillator.start(when);
     this.isPlaying = true;
   }
 
-  stop() {
+  stop(when: number = this.audioContext.currentTime) {
     if (!this.isPlaying) return;
     
-    const now = this.audioContext.currentTime;
-    
     // Release envelope
-    this.gainNode.gain.cancelScheduledValues(now);
-    this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, now);
-    this.gainNode.gain.linearRampToValueAtTime(0, now + this.settings.release);
+    this.gainNode.gain.cancelScheduledValues(when);
+    this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, when);
+    this.gainNode.gain.linearRampToValueAtTime(0, when + this.settings.release);
     
-    this.oscillator.stop(now + this.settings.release);
+    this.oscillator.stop(when + this.settings.release);
     this.isPlaying = false;
   }
 }
