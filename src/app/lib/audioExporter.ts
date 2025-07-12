@@ -224,10 +224,101 @@ export class AudioExporter {
   }
 
   private async downloadMP3(buffer: AudioBuffer, bitDepth: 16 | 24 = 16, filename: string = 'export'): Promise<void> {
-    // MP3エンコーディングは複雑なので、WAVとして保存
-    // 実際のMP3エンコーディングには外部ライブラリが必要
-    console.warn('MP3 export not fully implemented, saving as WAV instead');
-    this.downloadWAV(buffer, bitDepth, filename);
+    try {
+      // LameJSを動的にロード
+      const lamejs = await this.loadLameJS();
+      if (!lamejs) {
+        console.warn('LameJS not available, saving as WAV instead');
+        this.downloadWAV(buffer, bitDepth, filename);
+        return;
+      }
+
+      const mp3Data = this.audioBufferToMp3(buffer, lamejs);
+      const blob = new Blob([mp3Data], { type: 'audio/mp3' });
+      this.downloadBlob(blob, `${filename}.mp3`);
+    } catch (error) {
+      console.error('MP3 export failed, saving as WAV instead:', error);
+      this.downloadWAV(buffer, bitDepth, filename);
+    }
+  }
+
+  private async loadLameJS(): Promise<any> {
+    try {
+      // CDNからLameJSを動的ロード
+      return new Promise((resolve, reject) => {
+        if ((window as any).lamejs) {
+          resolve((window as any).lamejs);
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
+        script.onload = () => {
+          if ((window as any).lamejs) {
+            resolve((window as any).lamejs);
+          } else {
+            reject(new Error('LameJS not found after loading'));
+          }
+        };
+        script.onerror = () => reject(new Error('Failed to load LameJS'));
+        document.head.appendChild(script);
+      });
+    } catch (error) {
+      console.error('Failed to load LameJS:', error);
+      return null;
+    }
+  }
+
+  private audioBufferToMp3(buffer: AudioBuffer, lamejs: any): Uint8Array {
+    const sampleRate = buffer.sampleRate;
+    const channels = buffer.numberOfChannels;
+    const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, 128); // 128kbps
+    
+    const length = buffer.length;
+    const mp3Data: Uint8Array[] = [];
+    
+    // チャンネルデータを取得
+    const leftChannel = buffer.getChannelData(0);
+    const rightChannel = channels > 1 ? buffer.getChannelData(1) : leftChannel;
+    
+    // 16-bit PCMに変換
+    const left = new Int16Array(length);
+    const right = new Int16Array(length);
+    
+    for (let i = 0; i < length; i++) {
+      left[i] = Math.max(-32768, Math.min(32767, leftChannel[i] * 32767));
+      right[i] = Math.max(-32768, Math.min(32767, rightChannel[i] * 32767));
+    }
+    
+    // チャンクごとにエンコード（メモリ効率のため）
+    const chunkSize = 1152; // MP3フレームサイズ
+    for (let i = 0; i < length; i += chunkSize) {
+      const leftChunk = left.subarray(i, i + chunkSize);
+      const rightChunk = right.subarray(i, i + chunkSize);
+      
+      const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+      if (mp3buf.length > 0) {
+        mp3Data.push(mp3buf);
+      }
+    }
+    
+    // 最終フラッシュ
+    const finalMp3buf = mp3encoder.flush();
+    if (finalMp3buf.length > 0) {
+      mp3Data.push(finalMp3buf);
+    }
+    
+    // 全データを結合
+    const totalLength = mp3Data.reduce((sum, chunk) => sum + chunk.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    
+    for (const chunk of mp3Data) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+    
+    return result;
   }
 
   private audioBufferToWav(buffer: AudioBuffer, bitDepth: 16 | 24 = 16): ArrayBuffer {

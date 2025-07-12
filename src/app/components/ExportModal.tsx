@@ -112,7 +112,7 @@ export default function ExportModal({
         {/* Bit Depth Selection */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-white mb-3">
-            Audio Quality
+            Audio Quality {format === 'mp3' && <span className="text-xs text-gray-400">(WAV only)</span>}
           </label>
           <div className="space-y-2">
             <label className="flex items-center">
@@ -123,7 +123,7 @@ export default function ExportModal({
                 checked={bitDepth === 16}
                 onChange={(e) => setBitDepth(parseInt(e.target.value) as 16 | 24)}
                 className="mr-3"
-                disabled={isExporting}
+                disabled={isExporting || format === 'mp3'}
               />
               <span className="text-gray-300">
                 16-bit (Standard CD Quality)
@@ -137,7 +137,7 @@ export default function ExportModal({
                 checked={bitDepth === 24}
                 onChange={(e) => setBitDepth(parseInt(e.target.value) as 16 | 24)}
                 className="mr-3"
-                disabled={isExporting}
+                disabled={isExporting || format === 'mp3'}
               />
               <span className="text-gray-300">
                 24-bit (High Resolution Audio)
@@ -180,7 +180,7 @@ export default function ExportModal({
             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:bg-gray-500"
             disabled={isExporting || tracks.length === 0}
           >
-            {isExporting ? 'Exporting...' : 'Export'}
+            {isExporting ? (format === 'mp3' ? 'Encoding MP3...' : 'Rendering WAV...') : 'Export'}
           </button>
         </div>
 
@@ -192,7 +192,7 @@ export default function ExportModal({
 
         {format === 'mp3' && (
           <div className="mt-4 p-3 bg-blue-600 bg-opacity-20 border border-blue-600 rounded text-blue-200 text-sm">
-            ℹ️ MP3 export will be saved as WAV for now. Full MP3 support coming soon.
+            ℹ️ MP3 export uses 128kbps compression. First export may take longer as MP3 encoder loads.
           </div>
         )}
       </div>
