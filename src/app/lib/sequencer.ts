@@ -218,11 +218,8 @@ export class Sequencer {
     }
   }
 
-  playNotePreview(note: string, octave: number, trackId?: string) {
-    const track = trackId ? this.tracks.find(t => t.id === trackId) : null;
-    const settings = track?.synthSettings;
-    
-    this.synthesizer.playNote(note, octave, 0.7, 0.5, settings);
+  playNotePreview(note: string, octave: number) {
+    this.synthesizer.playPreviewNote(note, octave, 0.7);
   }
 
   playDrumPreview(drumType: string) {

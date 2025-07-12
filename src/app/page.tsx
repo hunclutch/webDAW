@@ -216,9 +216,9 @@ export default function Home() {
 
   const handleNotePreview = useCallback((note: string, octave: number) => {
     if (audioEngine) {
-      audioEngine.getSequencer().playNotePreview(note, octave, selectedTrackId || undefined);
+      audioEngine.getSequencer().playNotePreview(note, octave);
     }
-  }, [audioEngine, selectedTrackId]);
+  }, [audioEngine]);
 
   const handleDrumPreview = useCallback((drumType: string) => {
     if (audioEngine) {

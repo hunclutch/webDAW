@@ -41,7 +41,7 @@ export default function MultiTrackPianoRoll({
   playheadPosition,
 }: MultiTrackPianoRollProps) {
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawMode, setDrawMode] = useState<'add' | 'remove' | 'resize'>('add');
+  const [drawMode, setDrawMode] = useState<'add' | 'remove' | 'resize' | 'move'>('add');
   const [gridWidth, setGridWidth] = useState(INITIAL_gridWidth);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartNote, setDragStartNote] = useState<Note | null>(null);
@@ -49,6 +49,9 @@ export default function MultiTrackPianoRoll({
   const [isResizing, setIsResizing] = useState(false);
   const [resizeTarget, setResizeTarget] = useState<Note | null>(null);
   const [resizeEdge, setResizeEdge] = useState<'start' | 'end' | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<Note | null>(null);
+  const [moveStartPos, setMoveStartPos] = useState<{ x: number; y: number } | null>(null);
   const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
   const [hasMoved, setHasMoved] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -163,9 +166,10 @@ export default function MultiTrackPianoRoll({
         setResizeEdge(edge);
         setDrawMode('resize');
       } else {
-        // ノートの中央をクリック - 削除またはドラッグ準備
-        setDrawMode('remove');
-        // ここでは削除せず、mouseUpで判定
+        // ノートの中央をクリック - 移動モード準備
+        setDrawMode('move');
+        setMoveTarget(clickedNote);
+        setMoveStartPos({ x, y });
       }
     } else {
       // 空の場所をクリック - 新しいノート作成準備
@@ -210,6 +214,8 @@ export default function MultiTrackPianoRoll({
           setIsDragging(true);
         } else if (drawMode === 'resize' && resizeTarget) {
           setIsResizing(true);
+        } else if (drawMode === 'move' && moveTarget) {
+          setIsMoving(true);
         }
       }
     }
@@ -244,6 +250,23 @@ export default function MultiTrackPianoRoll({
         );
         onNotesChange(updatedNotes);
       }
+    } else if (isMoving && moveTarget && selectedTrackId) {
+      // ノートの移動中 - 位置と音程を変更
+      const noteData = positionToNote(y);
+      if (noteData) {
+        const selectedTrack = tracks.find(t => t.id === selectedTrackId);
+        if (selectedTrack) {
+          const updatedNotes = selectedTrack.notes.map(n => 
+            n.id === moveTarget.id ? { 
+              ...n, 
+              start: step,
+              note: noteData.note,
+              octave: noteData.octave
+            } : n
+          );
+          onNotesChange(updatedNotes);
+        }
+      }
     } else if (hasMoved && drawMode === 'add') {
       // 従来のドローモード - 新しいノート追加
       const noteData = positionToNote(y);
@@ -271,6 +294,7 @@ export default function MultiTrackPianoRoll({
   };
 
   const handleMouseUp = () => {
+    
     // ドラッグしていない場合のクリック処理
     if (!hasMoved && drawMode === 'remove' && mouseDownPos && selectedTrackId) {
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -297,6 +321,9 @@ export default function MultiTrackPianoRoll({
     setIsResizing(false);
     setResizeTarget(null);
     setResizeEdge(null);
+    setIsMoving(false);
+    setMoveTarget(null);
+    setMoveStartPos(null);
     setMouseDownPos(null);
     setHasMoved(false);
   };

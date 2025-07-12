@@ -32,13 +32,16 @@ export default function PianoRoll({
 }: PianoRollProps) {
   // const [selectedNote, setSelectedNote] = useState<string | null>(null); // 未使用のためコメントアウト
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawMode, setDrawMode] = useState<'add' | 'remove' | 'resize'>('add');
+  const [drawMode, setDrawMode] = useState<'add' | 'remove' | 'resize' | 'move'>('add');
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartNote, setDragStartNote] = useState<Note | null>(null);
   const [dragStartStep, setDragStartStep] = useState<number>(0);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeTarget, setResizeTarget] = useState<Note | null>(null);
   const [resizeEdge, setResizeEdge] = useState<'start' | 'end' | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<Note | null>(null);
+  const [moveStartPos, setMoveStartPos] = useState<{ x: number; y: number } | null>(null);
   const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
   const [hasMoved, setHasMoved] = useState(false);
   const gridWidth = measures * STEPS_PER_MEASURE; // 小節数 × 16分音符
@@ -137,9 +140,10 @@ export default function PianoRoll({
         setResizeEdge(edge);
         setDrawMode('resize');
       } else {
-        // ノートの中央をクリック - 削除またはドラッグ準備
-        setDrawMode('remove');
-        // ここでは削除せず、mouseUpで判定
+        // ノートの中央をクリック - 移動モード準備
+        setDrawMode('move');
+        setMoveTarget(clickedNote);
+        setMoveStartPos({ x, y });
       }
     } else {
       // 空の場所をクリック - 新しいノート作成準備
@@ -184,6 +188,8 @@ export default function PianoRoll({
           setIsDragging(true);
         } else if (drawMode === 'resize' && resizeTarget) {
           setIsResizing(true);
+        } else if (drawMode === 'move' && moveTarget) {
+          setIsMoving(true);
         }
       }
     }
@@ -215,6 +221,20 @@ export default function PianoRoll({
         );
         onNotesChange(updatedNotes);
       }
+    } else if (isMoving && moveTarget) {
+      // ノートの移動中 - 位置と音程を変更
+      const noteData = positionToNote(y);
+      if (noteData) {
+        const updatedNotes = notes.map(n => 
+          n.id === moveTarget.id ? { 
+            ...n, 
+            start: step,
+            note: noteData.note,
+            octave: noteData.octave
+          } : n
+        );
+        onNotesChange(updatedNotes);
+      }
     } else if (hasMoved && drawMode === 'add') {
       // 従来のドローモード - 新しいノート追加
       const noteData = positionToNote(y);
@@ -242,21 +262,9 @@ export default function PianoRoll({
   };
 
   const handleMouseUp = () => {
-    // ドラッグしていない場合のクリック処理
-    if (!hasMoved && drawMode === 'remove' && mouseDownPos) {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect) {
-        const step = positionToStep(mouseDownPos.x);
-        const noteData = positionToNote(mouseDownPos.y);
-        if (noteData) {
-          const clickedNote = getNoteAtPosition(step, noteData);
-          if (clickedNote && !isNearNoteEdge(clickedNote, step)) {
-            // ノートを削除
-            onNotesChange(notes.filter(n => n.id !== clickedNote.id));
-          }
-        }
-      }
-    }
+    // ドラッグしていない場合のクリック処理（削除はダブルクリックに変更）
+    // 単一クリックではノート削除を行わない（移動機能と競合するため）
+    
 
     setIsDrawing(false);
     setIsDragging(false);
@@ -265,12 +273,33 @@ export default function PianoRoll({
     setIsResizing(false);
     setResizeTarget(null);
     setResizeEdge(null);
+    setIsMoving(false);
+    setMoveTarget(null);
+    setMoveStartPos(null);
     setMouseDownPos(null);
     setHasMoved(false);
   };
 
   const handleKeyClick = (note: string, octave: number) => {
     onPreviewNote(note, octave);
+  };
+
+  const handleCanvasDoubleClick = (e: React.MouseEvent) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const step = positionToStep(x);
+    const noteData = positionToNote(y);
+    
+    if (!noteData || step < 0 || step >= gridWidth) return;
+
+    const clickedNote = getNoteAtPosition(step, noteData);
+    if (clickedNote) {
+      // ダブルクリックでノートを削除
+      onNotesChange(notes.filter(n => n.id !== clickedNote.id));
+    }
   };
 
   const isBlackKey = (note: string) => note.includes('#');
@@ -380,6 +409,7 @@ export default function PianoRoll({
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
+            onDoubleClick={handleCanvasDoubleClick}
           />
           
           {/* Grid lines */}

@@ -55,6 +55,41 @@ export class Synthesizer {
     this.activeNotes.clear();
   }
 
+  playPreviewNote(note: string, octave: number, velocity: number = 0.8) {
+    const frequency = this.noteToFrequency(note, octave);
+    const previewKey = `preview-${note}${octave}`;
+    
+    // Stop existing preview note
+    if (this.activeNotes.has(previewKey)) {
+      const voice = this.activeNotes.get(previewKey);
+      if (voice) {
+        voice.stop();
+        this.activeNotes.delete(previewKey);
+      }
+    }
+
+    const settings = this.getDefaultSettings();
+    // Shorter envelope for preview
+    settings.attack = 0.05;
+    settings.decay = 0.1;
+    settings.sustain = 0.5;
+    settings.release = 0.2;
+
+    const voice = new SynthVoice(this.audioContext, settings);
+    voice.connect(this.masterGain);
+    voice.start(frequency, velocity);
+    
+    this.activeNotes.set(previewKey, voice);
+
+    // Auto-stop preview after short duration
+    setTimeout(() => {
+      if (this.activeNotes.has(previewKey)) {
+        voice.stop();
+        this.activeNotes.delete(previewKey);
+      }
+    }, 500);
+  }
+
   private noteToFrequency(note: string, octave: number): number {
     const noteMap: { [key: string]: number } = {
       'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
@@ -75,12 +110,12 @@ export class Synthesizer {
   private getDefaultSettings(): SynthSettings {
     return {
       waveform: 'sawtooth',
-      attack: 0.1,
-      decay: 0.3,
-      sustain: 0.7,
-      release: 0.5,
-      filterFreq: 2000,
-      filterQ: 1,
+      attack: 0.02,
+      decay: 0.2,
+      sustain: 0.6,
+      release: 0.3,
+      filterFreq: 3000,
+      filterQ: 0.5,
     };
   }
 }
@@ -148,11 +183,31 @@ class SynthVoice {
     if (!this.isPlaying) return;
     
     // Release envelope
+    const currentTime = this.audioContext.currentTime;
+    const currentGain = this.gainNode.gain.value;
+    
     this.gainNode.gain.cancelScheduledValues(when);
-    this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, when);
+    this.gainNode.gain.setValueAtTime(currentGain, when);
     this.gainNode.gain.linearRampToValueAtTime(0, when + this.settings.release);
     
+    // Stop oscillator after release time
     this.oscillator.stop(when + this.settings.release);
+    
+    // Clean up after stop
+    setTimeout(() => {
+      this.disconnect();
+    }, (when + this.settings.release - currentTime) * 1000 + 100);
+    
     this.isPlaying = false;
+  }
+
+  disconnect() {
+    try {
+      this.oscillator.disconnect();
+      this.filter.disconnect();
+      this.gainNode.disconnect();
+    } catch (e) {
+      // Already disconnected
+    }
   }
 }
