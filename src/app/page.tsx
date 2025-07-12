@@ -24,6 +24,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'drums' | 'pianoroll'>('pianoroll');
   const [showTrackCreator, setShowTrackCreator] = useState(false);
   const [showKeyboard, setShowKeyboard] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [projectName, setProjectName] = useState('Untitled Project');
   
   const initialDAWState: DAWState = {
@@ -33,6 +34,7 @@ export default function Home() {
     bpm: 120,
     tracks: [],
     masterVolume: 0.8,
+    notes: '',
   };
 
   const {
@@ -89,7 +91,7 @@ export default function Home() {
   // 自動保存 (5秒間隔)
   useEffect(() => {
     const interval = setInterval(() => {
-      if (dawState.tracks && dawState.tracks.length > 0) {
+      if (dawState.tracks?.length > 0 || dawState.notes?.trim()) {
         autoSave(dawState);
       }
     }, 5000);
@@ -100,13 +102,10 @@ export default function Home() {
   // 初回読み込み時に自動保存データを復元
   useEffect(() => {
     const autoSaveData = loadAutoSave();
-    if (autoSaveData && autoSaveData.tracks.length > 0) {
-      const shouldRestore = window.confirm('前回の作業データが見つかりました。復元しますか？');
-      if (shouldRestore) {
-        const restoredState = projectToDAWState(autoSaveData);
-        resetHistory(restoredState as DAWState);
-        setProjectName(autoSaveData.name);
-      }
+    if (autoSaveData && (autoSaveData.tracks.length > 0 || autoSaveData.notes)) {
+      const restoredState = projectToDAWState(autoSaveData);
+      resetHistory(restoredState as DAWState);
+      setProjectName(autoSaveData.name || 'Auto Saved Project');
     }
   }, [loadAutoSave, projectToDAWState, resetHistory]);
 
@@ -281,9 +280,17 @@ export default function Home() {
       setProjectName('Untitled Project');
       setSelectedTrackId(null);
       setShowTrackCreator(false);
+      setShowNotes(false);
       clearAutoSave();
     }
   }, [resetHistory, clearAutoSave]);
+
+  const handleProjectNotesChange = useCallback((notes: string) => {
+    setDawState({
+      ...dawState,
+      notes,
+    });
+  }, [dawState, setDawState]);
 
   const handleExportAudio = useCallback(async (format: 'wav' | 'mp3', filename: string, bitDepth: 16 | 24) => {
     if (!audioEngine) {
@@ -346,6 +353,22 @@ export default function Home() {
                   title="Export Audio"
                 >
                   Export
+                </button>
+                <button
+                  onClick={() => setShowNotes(!showNotes)}
+                  className={`px-2 py-1 text-sm rounded transition-colors ${
+                    showNotes
+                      ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                      : 'bg-gray-600 hover:bg-gray-500 text-white'
+                  }`}
+                  title="Notes & Lyrics"
+                >
+                  <span className="inline-flex items-center space-x-1">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                    </svg>
+                    <span>Notes</span>
+                  </span>
                 </button>
               </div>
 
@@ -671,6 +694,31 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Notes/Lyrics Panel */}
+      {showNotes && (
+        <div className="bg-gray-800 border-t border-gray-700 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-white font-medium">Notes & Lyrics</h3>
+            <button
+              onClick={() => setShowNotes(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+          <textarea
+            value={dawState.notes || ''}
+            onChange={(e) => handleProjectNotesChange(e.target.value)}
+            placeholder="Write your lyrics, chord progressions, or any notes here..."
+            className="w-full h-32 p-3 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none resize-vertical"
+            style={{ minHeight: '128px', maxHeight: '300px' }}
+          />
+          <div className="mt-2 text-xs text-gray-400">
+            Your notes are automatically saved with the project
+          </div>
+        </div>
+      )}
 
       {/* Bottom Virtual Keyboard */}
       {showKeyboard && (

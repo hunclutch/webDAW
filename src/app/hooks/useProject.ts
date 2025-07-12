@@ -16,6 +16,7 @@ export function useProject() {
       modified: new Date().toISOString(),
       bpm: dawState.bpm,
       masterVolume: dawState.masterVolume,
+      notes: dawState.notes || '',
       tracks: dawState.tracks?.map(track => ({
         id: track.id,
         name: track.name,
@@ -79,6 +80,7 @@ export function useProject() {
     return {
       bpm: projectData.bpm,
       masterVolume: projectData.masterVolume,
+      notes: projectData.notes || '',
       tracks: projectData.tracks.map(track => ({
         ...track,
         audioBuffer: null, // オーディオバッファは再生成が必要
@@ -99,6 +101,7 @@ export function useProject() {
         modified: new Date().toISOString(),
         bpm: dawState.bpm,
         masterVolume: dawState.masterVolume,
+        notes: dawState.notes || '',
         tracks: dawState.tracks?.map(track => ({
           id: track.id,
           name: track.name,

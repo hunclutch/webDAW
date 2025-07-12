@@ -61,6 +61,7 @@ export interface DAWState {
   bpm: number;
   tracks: Track[];
   masterVolume: number;
+  notes?: string; // プロジェクトのメモ・歌詞など
 }
 
 export interface AudioFile {
@@ -76,6 +77,7 @@ export interface ProjectFile {
   modified: string;
   bpm: number;
   masterVolume: number;
+  notes?: string;
   tracks: ProjectTrack[];
 }
 
