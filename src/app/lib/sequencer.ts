@@ -16,6 +16,7 @@ export class Sequencer {
   private tracks: Track[] = [];
   private playheadPosition = 0;
   private maxMeasures = 60;
+  private scheduledNotes: Set<string> = new Set(); // 重複防止用
 
   constructor(
     audioContext: AudioContext,
@@ -44,6 +45,7 @@ export class Sequencer {
     
     this.isPlaying = true;
     this.startTime = this.audioContext.currentTime - this.currentTime;
+    this.scheduledNotes.clear(); // 新しい再生開始時にクリア
     
     // Schedule notes and drum hits
     this.scheduleTracksPlayback();
@@ -78,6 +80,7 @@ export class Sequencer {
     }
     
     this.stopAllActiveNotes();
+    this.scheduledNotes.clear(); // スケジュール済みノートをクリア
   }
 
   getCurrentTime(): number {
@@ -129,8 +132,13 @@ export class Sequencer {
         const noteStartTime = audioTime + (noteStartStep - currentStep) * secondsPer16thNote;
         const noteDuration = note.duration * secondsPer16thNote;
         
+        // 重複スケジューリングを防ぐためのユニークキー
+        const noteKey = `${track.id}-${note.id}-${noteStartStep}`;
+        
         // Use Web Audio API scheduling instead of setTimeout
-        if (this.isPlaying && noteStartTime >= this.audioContext.currentTime) {
+        if (this.isPlaying && noteStartTime >= this.audioContext.currentTime && !this.scheduledNotes.has(noteKey)) {
+          this.scheduledNotes.add(noteKey);
+          
           this.synthesizer.playNote(
             note.note,
             note.octave,
@@ -139,6 +147,11 @@ export class Sequencer {
             track.synthSettings,
             noteStartTime
           );
+          
+          // ノート終了後にスケジュールから削除
+          setTimeout(() => {
+            this.scheduledNotes.delete(noteKey);
+          }, (noteStartTime + noteDuration - this.audioContext.currentTime) * 1000 + 100);
         }
       }
     });

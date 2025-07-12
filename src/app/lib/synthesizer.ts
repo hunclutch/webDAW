@@ -21,13 +21,10 @@ export class Synthesizer {
     startTime?: number
   ) {
     const frequency = this.noteToFrequency(note, octave);
-    const noteKey = `${note}${octave}`;
     const when = startTime || this.audioContext.currentTime;
     
-    // Stop existing note if playing
-    if (this.activeNotes.has(noteKey)) {
-      this.stopNote(note, octave);
-    }
+    // ユニークキーを生成（タイムスタンプベース）
+    const noteKey = `${note}${octave}-${when.toFixed(3)}-${Math.random().toString(36).substring(2, 11)}`;
 
     const voice = new SynthVoice(this.audioContext, settings);
     voice.connect(this.masterGain);
@@ -36,7 +33,11 @@ export class Synthesizer {
     this.activeNotes.set(noteKey, voice);
 
     if (duration) {
+      // ノート終了時に自動的にマップから削除
       voice.stop(when + duration);
+      setTimeout(() => {
+        this.activeNotes.delete(noteKey);
+      }, (when + duration - this.audioContext.currentTime) * 1000 + settings.release * 1000 + 100);
     }
   }
 
@@ -167,13 +168,14 @@ class SynthVoice {
     
     const maxGain = velocity * 0.3; // Limit max volume
     
-    // ADSR Envelope
+    // ADSR Envelope - Attackとサステインまでの処理
     this.gainNode.gain.setValueAtTime(0, when);
     this.gainNode.gain.linearRampToValueAtTime(maxGain, when + this.settings.attack);
     this.gainNode.gain.linearRampToValueAtTime(
       maxGain * this.settings.sustain,
       when + this.settings.attack + this.settings.decay
     );
+    // サステインレベルを維持（Releaseまで）
     
     this.oscillator.start(when);
     this.isPlaying = true;
@@ -184,19 +186,21 @@ class SynthVoice {
     
     // Release envelope
     const currentTime = this.audioContext.currentTime;
-    const currentGain = this.gainNode.gain.value;
+    const sustainGain = this.settings.sustain * 0.3; // 想定されるサステインレベル
     
+    // 現在のスケジュールをキャンセルしてリリースを開始
     this.gainNode.gain.cancelScheduledValues(when);
-    this.gainNode.gain.setValueAtTime(currentGain, when);
+    this.gainNode.gain.setValueAtTime(sustainGain, when);
     this.gainNode.gain.linearRampToValueAtTime(0, when + this.settings.release);
     
-    // Stop oscillator after release time
+    // リリース時間後にオシレーターを停止
     this.oscillator.stop(when + this.settings.release);
     
     // Clean up after stop
+    const cleanupDelay = Math.max(0, (when + this.settings.release - currentTime) * 1000) + 50;
     setTimeout(() => {
       this.disconnect();
-    }, (when + this.settings.release - currentTime) * 1000 + 100);
+    }, cleanupDelay);
     
     this.isPlaying = false;
   }
