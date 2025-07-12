@@ -6,10 +6,46 @@ export class Synthesizer {
   private audioContext: AudioContext;
   private masterGain: GainNode;
   private activeNotes: Map<string, SynthVoice> = new Map();
+  private cleanupInterval: number;
 
   constructor(audioContext: AudioContext, masterGain: GainNode) {
     this.audioContext = audioContext;
     this.masterGain = masterGain;
+    
+    // 定期的なクリーンアップ（2秒ごと）
+    this.cleanupInterval = window.setInterval(() => {
+      this.cleanupStaleNotes();
+    }, 2000);
+  }
+
+  // 停止したボイスを定期的にクリーンアップ
+  private cleanupStaleNotes() {
+    const staleKeys: string[] = [];
+    this.activeNotes.forEach((voice, key) => {
+      if (!(voice as any).isPlaying) {
+        staleKeys.push(key);
+      }
+    });
+    
+    staleKeys.forEach(key => {
+      const voice = this.activeNotes.get(key);
+      if (voice) {
+        voice.disconnect();
+        this.activeNotes.delete(key);
+      }
+    });
+    
+    if (staleKeys.length > 0) {
+      console.log(`Cleaned up ${staleKeys.length} stale notes`);
+    }
+  }
+
+  // Synthesizerを破棄する際のクリーンアップ
+  destroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+    this.stopAllNotes();
   }
 
   playNote(
@@ -60,35 +96,42 @@ export class Synthesizer {
     const frequency = this.noteToFrequency(note, octave);
     const previewKey = `preview-${note}${octave}`;
     
-    // Stop existing preview note
-    if (this.activeNotes.has(previewKey)) {
-      const voice = this.activeNotes.get(previewKey);
+    // Stop ALL existing preview notes to prevent accumulation
+    const previewKeys = Array.from(this.activeNotes.keys()).filter(key => key.startsWith('preview-'));
+    previewKeys.forEach(key => {
+      const voice = this.activeNotes.get(key);
       if (voice) {
         voice.stop();
-        this.activeNotes.delete(previewKey);
+        this.activeNotes.delete(key);
       }
-    }
+    });
 
     const settings = this.getDefaultSettings();
     // Shorter envelope for preview
-    settings.attack = 0.05;
-    settings.decay = 0.1;
-    settings.sustain = 0.5;
-    settings.release = 0.2;
+    settings.attack = 0.01; // さらに短く
+    settings.decay = 0.05;
+    settings.sustain = 0.3;
+    settings.release = 0.1;
 
     const voice = new SynthVoice(this.audioContext, settings);
     voice.connect(this.masterGain);
-    voice.start(frequency, velocity);
+    voice.start(frequency, velocity * 0.5); // ボリュームも下げる
     
     this.activeNotes.set(previewKey, voice);
 
-    // Auto-stop preview after short duration
-    setTimeout(() => {
+    // Auto-stop preview after short duration with cleanup
+    const timeoutId = setTimeout(() => {
       if (this.activeNotes.has(previewKey)) {
-        voice.stop();
-        this.activeNotes.delete(previewKey);
+        const voice = this.activeNotes.get(previewKey);
+        if (voice) {
+          voice.stop();
+          this.activeNotes.delete(previewKey);
+        }
       }
-    }, 500);
+    }, 300); // より短い時間で停止
+
+    // Store timeout ID for potential early cleanup
+    (voice as any)._timeoutId = timeoutId;
   }
 
   private noteToFrequency(note: string, octave: number): number {
@@ -184,23 +227,31 @@ class SynthVoice {
   stop(when: number = this.audioContext.currentTime) {
     if (!this.isPlaying) return;
     
-    // Release envelope
-    const currentTime = this.audioContext.currentTime;
-    const sustainGain = this.settings.sustain * 0.3; // 想定されるサステインレベル
-    
-    // 現在のスケジュールをキャンセルしてリリースを開始
-    this.gainNode.gain.cancelScheduledValues(when);
-    this.gainNode.gain.setValueAtTime(sustainGain, when);
-    this.gainNode.gain.linearRampToValueAtTime(0, when + this.settings.release);
-    
-    // リリース時間後にオシレーターを停止
-    this.oscillator.stop(when + this.settings.release);
-    
-    // Clean up after stop
-    const cleanupDelay = Math.max(0, (when + this.settings.release - currentTime) * 1000) + 50;
-    setTimeout(() => {
+    try {
+      // Release envelope
+      const currentTime = this.audioContext.currentTime;
+      const actualWhen = Math.max(when, currentTime);
+      const sustainGain = this.settings.sustain * 0.3;
+      
+      // 現在のスケジュールをキャンセルしてリリースを開始
+      this.gainNode.gain.cancelScheduledValues(actualWhen);
+      this.gainNode.gain.setValueAtTime(sustainGain, actualWhen);
+      this.gainNode.gain.linearRampToValueAtTime(0, actualWhen + this.settings.release);
+      
+      // リリース時間後にオシレーターを停止
+      this.oscillator.stop(actualWhen + this.settings.release);
+      
+      // Immediate cleanup for preview notes
+      const cleanupDelay = Math.max(0, (actualWhen + this.settings.release - currentTime) * 1000) + 50;
+      setTimeout(() => {
+        this.disconnect();
+      }, Math.min(cleanupDelay, 500)); // 最大500ms後にクリーンアップ
+      
+    } catch (error) {
+      // エラーが発生した場合でも確実にクリーンアップ
+      console.warn('Error stopping voice:', error);
       this.disconnect();
-    }, cleanupDelay);
+    }
     
     this.isPlaying = false;
   }

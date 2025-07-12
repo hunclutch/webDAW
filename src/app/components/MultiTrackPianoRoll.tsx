@@ -10,12 +10,14 @@ interface MultiTrackPianoRollProps {
   onPreviewNote: (note: string, octave: number) => void;
   isPlaying: boolean;
   playheadPosition: number;
+  measures?: number;
+  onMeasuresChange?: (measures: number) => void;
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const OCTAVES = [1, 2, 3, 4, 5, 6, 7]; // Low to high for visual layout
-const INITIAL_gridWidth = 64; // Initial grid width (4 bars of 16th notes)
-const GRID_EXTENSION = 64; // How many steps to add when extending
+const INITIAL_MEASURES = 60; // デフォルト60小節
+const STEPS_PER_MEASURE = 16; // 16分音符単位（4/4拍子）
 const CELL_WIDTH = 24;
 const CELL_HEIGHT = 20;
 const DRAG_THRESHOLD = 5; // ドラッグと判定するピクセル距離
@@ -39,10 +41,12 @@ export default function MultiTrackPianoRoll({
   onPreviewNote,
   isPlaying,
   playheadPosition,
+  measures = INITIAL_MEASURES,
+  onMeasuresChange,
 }: MultiTrackPianoRollProps) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawMode, setDrawMode] = useState<'add' | 'remove' | 'resize' | 'move'>('add');
-  const [gridWidth, setGridWidth] = useState(INITIAL_gridWidth);
+  const gridWidth = measures * STEPS_PER_MEASURE; // 小節数 × 16分音符
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartNote, setDragStartNote] = useState<Note | null>(null);
   const [dragStartStep, setDragStartStep] = useState<number>(0);
@@ -54,6 +58,7 @@ export default function MultiTrackPianoRoll({
   const [moveStartPos, setMoveStartPos] = useState<{ x: number; y: number } | null>(null);
   const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
   const [hasMoved, setHasMoved] = useState(false);
+  const [lastPreviewTime, setLastPreviewTime] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gridScrollRef = useRef<HTMLDivElement>(null);
@@ -76,36 +81,33 @@ export default function MultiTrackPianoRoll({
     }
   }, []);
   
-  // グリッド幅が変更されたときのサイズ更新を監視
+  // 小節数が変更されたときのcanvas再描画
   useEffect(() => {
-    console.log('Grid width updated to:', gridWidth);
-  }, [gridWidth]);
+    console.log('Measures updated to:', measures, 'Grid width:', gridWidth);
+    
+    // Canvasサイズを強制的に更新
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      canvas.width = gridWidth * CELL_WIDTH;
+      canvas.height = NOTES.length * OCTAVES.length * CELL_HEIGHT;
+      
+      // Canvas要素のDOM属性も更新
+      canvas.setAttribute('width', (gridWidth * CELL_WIDTH).toString());
+      canvas.setAttribute('height', (NOTES.length * OCTAVES.length * CELL_HEIGHT).toString());
+    }
+  }, [measures, gridWidth]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop;
-    const scrollLeft = e.currentTarget.scrollLeft;
     
     if (scrollContainerRef.current && gridScrollRef.current) {
       if (e.currentTarget === scrollContainerRef.current) {
         gridScrollRef.current.scrollTop = scrollTop;
       } else {
         scrollContainerRef.current.scrollTop = scrollTop;
-        
-        // 横スクロールが85%に達したら自動拡張（より早く拡張）
-        const scrollWidth = e.currentTarget.scrollWidth;
-        const clientWidth = e.currentTarget.clientWidth;
-        const scrollPercentage = (scrollLeft + clientWidth) / scrollWidth;
-        
-        if (scrollPercentage > 0.85) {
-          setGridWidth(prev => {
-            const newWidth = prev + GRID_EXTENSION;
-            console.log('Grid extended from', prev, 'to', newWidth, 'at scroll percentage:', scrollPercentage.toFixed(2));
-            return newWidth;
-          });
-        }
       }
     }
-  }, [gridWidth]);
+  }, []);
 
   const positionToStep = (x: number) => {
     return Math.floor(x / CELL_WIDTH);
@@ -186,7 +188,13 @@ export default function MultiTrackPianoRoll({
       setDragStartNote(newNote);
       setDragStartStep(step);
       onNotesChange([...selectedTrack.notes, newNote]);
-      onPreviewNote(noteData.note, noteData.octave);
+      
+      // プレビュー音の再生頻度を制限（100ms間隔）
+      const now = Date.now();
+      if (now - lastPreviewTime > 100) {
+        onPreviewNote(noteData.note, noteData.octave);
+        setLastPreviewTime(now);
+      }
     }
 
     setIsDrawing(true);
@@ -377,7 +385,20 @@ export default function MultiTrackPianoRoll({
     <div className="bg-gray-800 rounded-lg p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-white font-medium">Multi-Track Piano Roll</h3>
-        <div className="flex space-x-2">
+        <div className="flex items-center space-x-2">
+          {onMeasuresChange && (
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-400">Measures:</label>
+              <input
+                type="number"
+                min="1"
+                max="200"
+                value={measures}
+                onChange={(e) => onMeasuresChange(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-16 px-2 py-1 bg-gray-700 text-white text-sm rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+          )}
           {selectedTrackId && (
             <button
               onClick={handleClearTrack}
@@ -430,27 +451,47 @@ export default function MultiTrackPianoRoll({
 
         {/* Grid */}
         <div 
-          className="relative overflow-x-auto overflow-y-auto flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
+          className="relative overflow-auto flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
           ref={gridScrollRef}
           onScroll={handleScroll}
+          style={{ 
+            minWidth: '0',
+            minHeight: '0'
+          }}
         >
-          <canvas
-            ref={canvasRef}
-            width={gridWidth * CELL_WIDTH}
-            height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
-            className="border border-gray-600 cursor-crosshair"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          />
-          
-          {/* Grid lines */}
-          <svg
-            className="absolute top-0 left-0 pointer-events-none"
-            width={gridWidth * CELL_WIDTH}
-            height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
+          <div 
+            key={`grid-${measures}`} // Key変更で強制リレンダリング
+            style={{ 
+              width: `${gridWidth * CELL_WIDTH}px`, 
+              height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`,
+              position: 'relative'
+            }}
           >
+            <canvas
+              key={`canvas-${measures}`} // Key変更で強制リレンダリング
+              ref={canvasRef}
+              width={gridWidth * CELL_WIDTH}
+              height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
+              className="border border-gray-600 cursor-crosshair"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              style={{
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                left: 0
+              }}
+            />
+            
+            {/* Grid lines */}
+            <svg
+              key={`svg-${measures}`} // Key変更で強制リレンダリング
+              className="absolute top-0 left-0 pointer-events-none"
+              width={gridWidth * CELL_WIDTH}
+              height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
+            >
             {/* Vertical lines */}
             {Array.from({ length: gridWidth + 1 }, (_, i) => (
               <line
@@ -554,7 +595,8 @@ export default function MultiTrackPianoRoll({
                 strokeWidth={2}
               />
             )}
-          </svg>
+            </svg>
+          </div>
         </div>
       </div>
 

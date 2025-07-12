@@ -44,6 +44,7 @@ export default function PianoRoll({
   const [moveStartPos, setMoveStartPos] = useState<{ x: number; y: number } | null>(null);
   const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
   const [hasMoved, setHasMoved] = useState(false);
+  const [lastPreviewTime, setLastPreviewTime] = useState(0);
   const gridWidth = measures * STEPS_PER_MEASURE; // 小節数 × 16分音符
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -67,9 +68,20 @@ export default function PianoRoll({
     }
   }, []);
   
-  // 小節数が変更されたときのログ出力
+  // 小節数が変更されたときのcanvas再描画
   useEffect(() => {
     console.log('Measures updated to:', measures, 'Grid width:', gridWidth);
+    
+    // Canvasサイズを強制的に更新
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      canvas.width = gridWidth * CELL_WIDTH;
+      canvas.height = NOTES.length * OCTAVES.length * CELL_HEIGHT;
+      
+      // Canvas要素のDOM属性も更新
+      canvas.setAttribute('width', (gridWidth * CELL_WIDTH).toString());
+      canvas.setAttribute('height', (NOTES.length * OCTAVES.length * CELL_HEIGHT).toString());
+    }
   }, [measures, gridWidth]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -160,7 +172,13 @@ export default function PianoRoll({
       setDragStartNote(newNote);
       setDragStartStep(step);
       onNotesChange([...notes, newNote]);
-      onPreviewNote(noteData.note, noteData.octave);
+      
+      // プレビュー音の再生頻度を制限（100ms間隔）
+      const now = Date.now();
+      if (now - lastPreviewTime > 100) {
+        onPreviewNote(noteData.note, noteData.octave);
+        setLastPreviewTime(now);
+      }
     }
 
     setIsDrawing(true);
@@ -281,6 +299,7 @@ export default function PianoRoll({
   };
 
   const handleKeyClick = (note: string, octave: number) => {
+    // ピアノキーのクリックは制限なしでプレビュー音を再生
     onPreviewNote(note, octave);
   };
 
@@ -396,28 +415,48 @@ export default function PianoRoll({
 
         {/* Grid */}
         <div 
-          className="relative overflow-x-auto overflow-y-auto flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
+          className="relative overflow-auto flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
           ref={gridScrollRef}
           onScroll={handleScroll}
+          style={{ 
+            minWidth: '0',
+            minHeight: '0'
+          }}
         >
-          <canvas
-            ref={canvasRef}
-            width={gridWidth * CELL_WIDTH}
-            height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
-            className="border border-gray-600 cursor-crosshair"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onDoubleClick={handleCanvasDoubleClick}
-          />
-          
-          {/* Grid lines */}
-          <svg
-            className="absolute top-0 left-0 pointer-events-none"
-            width={gridWidth * CELL_WIDTH}
-            height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
+          <div 
+            key={`grid-${measures}`} // Key変更で強制リレンダリング
+            style={{ 
+              width: `${gridWidth * CELL_WIDTH}px`, 
+              height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`,
+              position: 'relative'
+            }}
           >
+            <canvas
+              key={`canvas-${measures}`} // Key変更で強制リレンダリング
+              ref={canvasRef}
+              width={gridWidth * CELL_WIDTH}
+              height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
+              className="border border-gray-600 cursor-crosshair"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onDoubleClick={handleCanvasDoubleClick}
+              style={{
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                left: 0
+              }}
+            />
+            
+            {/* Grid lines */}
+            <svg
+              key={`svg-${measures}`} // Key変更で強制リレンダリング
+              className="absolute top-0 left-0 pointer-events-none"
+              width={gridWidth * CELL_WIDTH}
+              height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
+            >
             {/* Vertical lines */}
             {Array.from({ length: gridWidth + 1 }, (_, i) => (
               <line
@@ -507,7 +546,8 @@ export default function PianoRoll({
                 strokeWidth={2}
               />
             )}
-          </svg>
+            </svg>
+          </div>
         </div>
       </div>
     </div>

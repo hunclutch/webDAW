@@ -401,17 +401,32 @@ export default function Home() {
             </div>
           </div>
           
-          <TransportControls
-            isPlaying={isPlaying}
-            isRecording={isRecording}
-            onPlay={handlePlay}
-            onPause={handlePause}
-            onStop={handleStop}
-            onRecord={() => setIsRecording(!isRecording)}
-            currentTime={currentTime}
-            bpm={dawState.bpm}
-            onBpmChange={handleBpmChange}
-          />
+          <div className="flex items-center space-x-4">
+            {/* Measures Control */}
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-300">Measures:</label>
+              <input
+                type="number"
+                min="1"
+                max="200"
+                value={measures}
+                onChange={(e) => setMeasures(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-16 px-2 py-1 bg-gray-700 text-white text-sm rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            
+            <TransportControls
+              isPlaying={isPlaying}
+              isRecording={isRecording}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onStop={handleStop}
+              onRecord={() => setIsRecording(!isRecording)}
+              currentTime={currentTime}
+              bpm={dawState.bpm}
+              onBpmChange={handleBpmChange}
+            />
+          </div>
         </div>
       </div>
 
