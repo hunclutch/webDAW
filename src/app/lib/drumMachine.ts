@@ -3,11 +3,11 @@
 import { DrumPattern, DrumStep } from '../types/audio';
 
 export class DrumMachine {
-  private audioContext: AudioContext;
+  private audioContext: AudioContext | OfflineAudioContext;
   private masterGain: GainNode;
   private drumSounds: Map<string, AudioBuffer> = new Map();
 
-  constructor(audioContext: AudioContext, masterGain: GainNode) {
+  constructor(audioContext: AudioContext | OfflineAudioContext, masterGain: GainNode) {
     this.audioContext = audioContext;
     this.masterGain = masterGain;
     // generateDrumSounds()は呼ばない

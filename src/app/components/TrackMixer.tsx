@@ -71,13 +71,13 @@ export default function TrackMixer({
         <div className="flex-1 w-full relative">
           <input
             type="range"
-            min="0"
-            max="1"
-            step="0.01"
+            min={0}
+            max={1}
+            step={0.01}
             value={track.volume}
             onChange={(e) => onVolumeChange(track.id, parseFloat(e.target.value))}
             className="w-full h-32 bg-gray-600 rounded-lg appearance-none cursor-pointer transform -rotate-90 origin-center"
-            style={{ writingMode: 'bt-lr' }}
+            style={{ writingMode: 'vertical-lr' }}
           />
         </div>
         <span className="text-white text-xs">
