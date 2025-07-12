@@ -12,6 +12,7 @@ interface InlineMidiViewerProps {
   onMeasuresChange: (measures: number) => void;
   onTrackSelect: (trackId: string) => void;
   onSwitchToDetailView?: () => void;
+  onDeleteTrack?: (trackId: string) => void;
 }
 
 const STEPS_PER_MEASURE = 16; // 16分音符単位
@@ -39,6 +40,7 @@ export default function InlineMidiViewer({
   onMeasuresChange,
   onTrackSelect,
   onSwitchToDetailView,
+  onDeleteTrack,
 }: InlineMidiViewerProps) {
   const gridScrollRef = useRef<HTMLDivElement>(null);
   
@@ -111,12 +113,26 @@ export default function InlineMidiViewer({
                   <div className="font-medium text-sm text-white">{track.name}</div>
                   <div className="text-xs text-gray-400 capitalize">{track.type}</div>
                 </div>
-                <div className="flex items-center space-x-1">
-                  <div
-                    className="w-3 h-3 rounded"
-                    style={{ backgroundColor: getTrackColor(index) }}
-                  />
-                  <span className="text-xs text-gray-400">{track.notes.length}</span>
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1">
+                    <div
+                      className="w-3 h-3 rounded"
+                      style={{ backgroundColor: getTrackColor(index) }}
+                    />
+                    <span className="text-xs text-gray-400">{track.notes.length}</span>
+                  </div>
+                  {onDeleteTrack && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteTrack(track.id);
+                      }}
+                      className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded opacity-70 hover:opacity-100"
+                      title="Delete track"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
               

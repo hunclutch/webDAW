@@ -9,6 +9,7 @@ interface TrackViewerProps {
   playheadPosition: number;
   measures?: number;
   onMeasuresChange?: (measures: number) => void;
+  onDeleteTrack?: (trackId: string) => void;
 }
 
 // const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; // 未使用
@@ -37,6 +38,7 @@ export default function TrackViewer({
   playheadPosition,
   measures = INITIAL_MEASURES,
   onMeasuresChange,
+  onDeleteTrack,
 }: TrackViewerProps) {
   const gridWidth = measures * STEPS_PER_MEASURE; // 小節数 × 16分音符
   const gridScrollRef = useRef<HTMLDivElement>(null);
@@ -97,15 +99,26 @@ export default function TrackViewer({
                 className="h-15 flex items-center px-3 border-b border-gray-700"
                 style={{ height: `${TRACK_HEIGHT}px` }}
               >
-                <div className="flex items-center space-x-2">
-                  <div
-                    className="w-3 h-3 rounded"
-                    style={{ backgroundColor: getTrackColor(index) }}
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-white">{track.name}</div>
-                    <div className="text-xs text-gray-400">{track.notes.length} notes</div>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center space-x-2">
+                    <div
+                      className="w-3 h-3 rounded"
+                      style={{ backgroundColor: getTrackColor(index) }}
+                    />
+                    <div>
+                      <div className="text-sm font-medium text-white">{track.name}</div>
+                      <div className="text-xs text-gray-400">{track.notes.length} notes</div>
+                    </div>
                   </div>
+                  {onDeleteTrack && (
+                    <button
+                      onClick={() => onDeleteTrack(track.id)}
+                      className="ml-2 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded opacity-70 hover:opacity-100"
+                      title="Delete track"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

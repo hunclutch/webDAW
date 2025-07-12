@@ -15,6 +15,7 @@ export class Sequencer {
   private intervalId: number | null = null;
   private tracks: Track[] = [];
   private playheadPosition = 0;
+  private maxMeasures = 60;
 
   constructor(
     audioContext: AudioContext,
@@ -28,6 +29,10 @@ export class Sequencer {
 
   setTracks(tracks: Track[]) {
     this.tracks = tracks;
+  }
+
+  setMaxMeasures(measures: number) {
+    this.maxMeasures = measures;
   }
 
   setBPM(bpm: number) {
@@ -172,7 +177,16 @@ export class Sequencer {
     this.intervalId = window.setInterval(() => {
       if (this.isPlaying) {
         const beatsPerSecond = this.bpm / 60;
-        this.playheadPosition = (this.getCurrentTime() * beatsPerSecond) % 16; // 4 bars
+        const totalBeats = this.getCurrentTime() * beatsPerSecond;
+        const maxBeats = this.maxMeasures * 4; // 各小節4ビート
+        
+        // 最大小節数に達したら停止
+        if (totalBeats >= maxBeats) {
+          this.stop();
+          return;
+        }
+        
+        this.playheadPosition = totalBeats;
         
         // Continue scheduling upcoming notes
         this.scheduleTracksPlayback();

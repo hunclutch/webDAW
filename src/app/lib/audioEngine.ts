@@ -74,6 +74,10 @@ export class AudioEngine {
     this.sequencer.setBPM(bpm);
   }
 
+  setMaxMeasures(measures: number) {
+    this.sequencer.setMaxMeasures(measures);
+  }
+
   getSynthesizer(): Synthesizer {
     return this.synthesizer;
   }

@@ -58,6 +58,13 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [measures, setMeasures] = useState(60); // デフォルト60小節
+
+  // 小節数が変更されたときにaudioEngineに反映
+  useEffect(() => {
+    if (audioEngine) {
+      audioEngine.setMaxMeasures(measures);
+    }
+  }, [audioEngine, measures]);
   const [showPianoRoll, setShowPianoRoll] = useState(true); // ピアノロール表示状態（デフォルトで詳細表示）
   const [showExportModal, setShowExportModal] = useState(false); // エクスポートモーダル表示状態
 
@@ -137,6 +144,21 @@ export default function Home() {
     setSelectedTrackId(newTrack.id);
     setShowTrackCreator(false);
   }, [audioEngine, initAudio, dawState, setDawState]);
+
+  const handleDeleteTrack = useCallback((trackId: string) => {
+    const updatedState = {
+      ...dawState,
+      tracks: (dawState.tracks || []).filter(track => track.id !== trackId),
+    };
+
+    setDawState(updatedState);
+    
+    // 削除されたトラックが選択されていた場合、選択を解除
+    if (selectedTrackId === trackId) {
+      setSelectedTrackId(null);
+      setShowPianoRoll(false);
+    }
+  }, [dawState, setDawState, selectedTrackId]);
 
   const handlePlay = useCallback(async () => {
     if (!audioEngine) {
@@ -263,7 +285,7 @@ export default function Home() {
     }
   }, [resetHistory, clearAutoSave]);
 
-  const handleExportAudio = useCallback(async (format: 'wav' | 'mp3', filename: string) => {
+  const handleExportAudio = useCallback(async (format: 'wav' | 'mp3', filename: string, bitDepth: 16 | 24) => {
     if (!audioEngine) {
       alert('オーディオエンジンが初期化されていません。再生ボタンを押してから再度お試しください。');
       return;
@@ -271,7 +293,7 @@ export default function Home() {
 
     try {
       const exporter = new AudioExporter(audioEngine.getAudioContext());
-      await exporter.exportTracks(dawState.tracks || [], measures, dawState.bpm, format);
+      await exporter.exportTracks(dawState.tracks || [], measures, dawState.bpm, format, bitDepth, filename);
     } catch (error) {
       console.error('Export failed:', error);
       throw error;
@@ -572,6 +594,7 @@ export default function Home() {
                       playheadPosition={playheadPosition}
                       measures={measures}
                       onMeasuresChange={setMeasures}
+                      onDeleteTrack={handleDeleteTrack}
                     />
                   ) : (
                     <InlineMidiViewer
@@ -586,6 +609,7 @@ export default function Home() {
                         console.log('Switching to detail view');
                         setShowPianoRoll(true);
                       }}
+                      onDeleteTrack={handleDeleteTrack}
                     />
                   )
                 ) : (

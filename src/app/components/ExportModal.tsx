@@ -6,7 +6,7 @@ import { Track } from '../types/audio';
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: 'wav' | 'mp3', filename: string) => void;
+  onExport: (format: 'wav' | 'mp3', filename: string, bitDepth: 16 | 24) => void;
   tracks: Track[];
   measures: number;
 }
@@ -20,6 +20,7 @@ export default function ExportModal({
 }: ExportModalProps) {
   const [format, setFormat] = useState<'wav' | 'mp3'>('wav');
   const [filename, setFilename] = useState('my-song');
+  const [bitDepth, setBitDepth] = useState<16 | 24>(16);
   const [isExporting, setIsExporting] = useState(false);
 
   if (!isOpen) return null;
@@ -32,7 +33,7 @@ export default function ExportModal({
 
     setIsExporting(true);
     try {
-      await onExport(format, filename.trim());
+      await onExport(format, filename.trim(), bitDepth);
       onClose();
     } catch (error) {
       console.error('Export failed:', error);
@@ -103,6 +104,43 @@ export default function ExportModal({
               />
               <span className="text-gray-300">
                 MP3 (Compressed, Smaller File Size)
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {/* Bit Depth Selection */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-white mb-3">
+            Audio Quality
+          </label>
+          <div className="space-y-2">
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="bitDepth"
+                value="16"
+                checked={bitDepth === 16}
+                onChange={(e) => setBitDepth(parseInt(e.target.value) as 16 | 24)}
+                className="mr-3"
+                disabled={isExporting}
+              />
+              <span className="text-gray-300">
+                16-bit (Standard CD Quality)
+              </span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="bitDepth"
+                value="24"
+                checked={bitDepth === 24}
+                onChange={(e) => setBitDepth(parseInt(e.target.value) as 16 | 24)}
+                className="mr-3"
+                disabled={isExporting}
+              />
+              <span className="text-gray-300">
+                24-bit (High Resolution Audio)
               </span>
             </label>
           </div>

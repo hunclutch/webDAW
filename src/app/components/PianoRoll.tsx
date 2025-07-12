@@ -15,11 +15,12 @@ interface PianoRollProps {
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const OCTAVES = [7, 6, 5, 4, 3, 2, 1]; // High to low for visual layout
+const OCTAVES = [1, 2, 3, 4, 5, 6, 7]; // Low to high for visual layout
 const INITIAL_MEASURES = 60; // 60小節デフォルト
 const STEPS_PER_MEASURE = 16; // 16分音符単位（4/4拍子）
 const CELL_WIDTH = 24;
 const CELL_HEIGHT = 20;
+const DRAG_THRESHOLD = 5; // ドラッグと判定するピクセル距離
 
 export default function PianoRoll({
   notes,
@@ -33,7 +34,15 @@ export default function PianoRoll({
 }: PianoRollProps) {
   // const [selectedNote, setSelectedNote] = useState<string | null>(null); // 未使用のためコメントアウト
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawMode, setDrawMode] = useState<'add' | 'remove'>('add');
+  const [drawMode, setDrawMode] = useState<'add' | 'remove' | 'resize'>('add');
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartNote, setDragStartNote] = useState<Note | null>(null);
+  const [dragStartStep, setDragStartStep] = useState<number>(0);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeTarget, setResizeTarget] = useState<Note | null>(null);
+  const [resizeEdge, setResizeEdge] = useState<'start' | 'end' | null>(null);
+  const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
+  const [hasMoved, setHasMoved] = useState(false);
   const gridWidth = measures * STEPS_PER_MEASURE; // 小節数 × 16分音符
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -45,7 +54,7 @@ export default function PianoRoll({
       // C4の位置を計算 (オクターブ4のCは上から3番目のオクターブの最初の音)
       const octaveIndex = OCTAVES.indexOf(4);
       const noteIndex = NOTES.indexOf('C');
-      const c4Position = (octaveIndex * NOTES.length + noteIndex) * CELL_HEIGHT;
+      const c4Position = ((OCTAVES.length - 1 - octaveIndex) * NOTES.length + (NOTES.length - 1 - noteIndex)) * CELL_HEIGHT;
       
       // コンテナの高さの半分を取得
       const containerHeight = scrollContainerRef.current.clientHeight;
@@ -89,8 +98,8 @@ export default function PianoRoll({
     const noteInOctave = noteIndex % NOTES.length;
     
     return {
-      note: NOTES[noteInOctave],
-      octave: OCTAVES[octaveIndex],
+      note: NOTES[NOTES.length - 1 - noteInOctave],
+      octave: OCTAVES[OCTAVES.length - 1 - octaveIndex],
     };
   };
 
@@ -101,7 +110,7 @@ export default function PianoRoll({
     const noteIndex = NOTES.indexOf(note);
     if (octaveIndex === -1 || noteIndex === -1) return -1;
     
-    return (octaveIndex * NOTES.length + noteIndex) * CELL_HEIGHT;
+    return ((OCTAVES.length - 1 - octaveIndex) * NOTES.length + (NOTES.length - 1 - noteIndex)) * CELL_HEIGHT;
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -115,18 +124,27 @@ export default function PianoRoll({
     
     if (!noteData || step < 0 || step >= gridWidth) return;
 
-    const existingNote = notes.find(
-      n => n.note === noteData.note && 
-           n.octave === noteData.octave && 
-           Math.floor(n.start) === step
-    );
+    // マウス位置を記録
+    setMouseDownPos({ x, y });
+    setHasMoved(false);
 
-    if (existingNote) {
-      // Remove note
-      setDrawMode('remove');
-      onNotesChange(notes.filter(n => n.id !== existingNote.id));
+    const clickedNote = getNoteAtPosition(step, noteData);
+
+    if (clickedNote) {
+      // 既存ノートをクリックした場合
+      const edge = isNearNoteEdge(clickedNote, step);
+      if (edge) {
+        // ノートの端をクリック - リサイズモード準備
+        setResizeTarget(clickedNote);
+        setResizeEdge(edge);
+        setDrawMode('resize');
+      } else {
+        // ノートの中央をクリック - 削除またはドラッグ準備
+        setDrawMode('remove');
+        // ここでは削除せず、mouseUpで判定
+      }
     } else {
-      // Add note
+      // 空の場所をクリック - 新しいノート作成準備
       setDrawMode('add');
       const newNote: Note = {
         id: `note-${Date.now()}-${Math.random()}`,
@@ -136,6 +154,9 @@ export default function PianoRoll({
         duration: 1,
         velocity: 0.8,
       };
+      
+      setDragStartNote(newNote);
+      setDragStartStep(step);
       onNotesChange([...notes, newNote]);
       onPreviewNote(noteData.note, noteData.octave);
     }
@@ -152,33 +173,102 @@ export default function PianoRoll({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const step = positionToStep(x);
-    const noteData = positionToNote(y);
     
-    if (!noteData || step < 0 || step >= gridWidth) return;
+    // マウスが移動したかチェック
+    if (mouseDownPos && !hasMoved) {
+      const deltaX = Math.abs(x - mouseDownPos.x);
+      const deltaY = Math.abs(y - mouseDownPos.y);
+      if (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD) {
+        setHasMoved(true);
+        
+        // ドラッグ開始時の処理
+        if (drawMode === 'add' && dragStartNote) {
+          setIsDragging(true);
+        } else if (drawMode === 'resize' && resizeTarget) {
+          setIsResizing(true);
+        }
+      }
+    }
 
-    const existingNote = notes.find(
-      n => n.note === noteData.note && 
-           n.octave === noteData.octave && 
-           Math.floor(n.start) === step
-    );
+    if (step < 0 || step >= gridWidth) return;
 
-    if (drawMode === 'add' && !existingNote) {
-      const newNote: Note = {
-        id: `note-${Date.now()}-${Math.random()}`,
-        note: noteData.note,
-        octave: noteData.octave,
-        start: step,
-        duration: 1,
-        velocity: 0.8,
-      };
-      onNotesChange([...notes, newNote]);
-    } else if (drawMode === 'remove' && existingNote) {
-      onNotesChange(notes.filter(n => n.id !== existingNote.id));
+    if (isDragging && dragStartNote) {
+      // 新しいノートのドラッグ中 - 長さを調整
+      const newDuration = Math.max(1, step - dragStartStep + 1);
+      const updatedNotes = notes.map(n => 
+        n.id === dragStartNote.id ? { ...n, duration: newDuration } : n
+      );
+      onNotesChange(updatedNotes);
+    } else if (isResizing && resizeTarget && resizeEdge) {
+      // 既存ノートのリサイズ中
+      if (resizeEdge === 'end') {
+        // 右端をドラッグ - 長さを変更
+        const newDuration = Math.max(1, step - resizeTarget.start + 1);
+        const updatedNotes = notes.map(n => 
+          n.id === resizeTarget.id ? { ...n, duration: newDuration } : n
+        );
+        onNotesChange(updatedNotes);
+      } else if (resizeEdge === 'start') {
+        // 左端をドラッグ - 開始位置と長さを変更
+        const newStart = Math.max(0, Math.min(step, resizeTarget.start + resizeTarget.duration - 1));
+        const newDuration = resizeTarget.start + resizeTarget.duration - newStart;
+        const updatedNotes = notes.map(n => 
+          n.id === resizeTarget.id ? { ...n, start: newStart, duration: newDuration } : n
+        );
+        onNotesChange(updatedNotes);
+      }
+    } else if (hasMoved && drawMode === 'add') {
+      // 従来のドローモード - 新しいノート追加
+      const noteData = positionToNote(y);
+      
+      if (!noteData) return;
+
+      const existingNote = notes.find(
+        n => n.note === noteData.note && 
+             n.octave === noteData.octave && 
+             Math.floor(n.start) === step
+      );
+
+      if (!existingNote) {
+        const newNote: Note = {
+          id: `note-${Date.now()}-${Math.random()}`,
+          note: noteData.note,
+          octave: noteData.octave,
+          start: step,
+          duration: 1,
+          velocity: 0.8,
+        };
+        onNotesChange([...notes, newNote]);
+      }
     }
   };
 
   const handleMouseUp = () => {
+    // ドラッグしていない場合のクリック処理
+    if (!hasMoved && drawMode === 'remove' && mouseDownPos) {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const step = positionToStep(mouseDownPos.x);
+        const noteData = positionToNote(mouseDownPos.y);
+        if (noteData) {
+          const clickedNote = getNoteAtPosition(step, noteData);
+          if (clickedNote && !isNearNoteEdge(clickedNote, step)) {
+            // ノートを削除
+            onNotesChange(notes.filter(n => n.id !== clickedNote.id));
+          }
+        }
+      }
+    }
+
     setIsDrawing(false);
+    setIsDragging(false);
+    setDragStartNote(null);
+    setDragStartStep(0);
+    setIsResizing(false);
+    setResizeTarget(null);
+    setResizeEdge(null);
+    setMouseDownPos(null);
+    setHasMoved(false);
   };
 
   const handleKeyClick = (note: string, octave: number) => {
@@ -186,6 +276,30 @@ export default function PianoRoll({
   };
 
   const isBlackKey = (note: string) => note.includes('#');
+
+  // ノートの端をクリックしているかチェック（リサイズハンドル）
+  const isNearNoteEdge = (note: Note, clickStep: number): 'start' | 'end' | null => {
+    const noteStartStep = note.start;
+    const noteEndStep = note.start + note.duration - 1; // 1ステップ手前が実際の終端
+    
+    if (Math.abs(clickStep - noteStartStep) <= 0.3) {
+      return 'start'; // 左端
+    }
+    if (Math.abs(clickStep - noteEndStep) <= 0.3) {
+      return 'end'; // 右端
+    }
+    return null; // 中央
+  };
+
+  // ノートをクリックしているかチェック
+  const getNoteAtPosition = (step: number, noteData: { note: string; octave: number }): Note | null => {
+    return notes.find(n => 
+      n.note === noteData.note && 
+      n.octave === noteData.octave && 
+      step >= n.start && 
+      step < n.start + n.duration
+    ) || null;
+  };
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
@@ -229,8 +343,8 @@ export default function PianoRoll({
           ref={scrollContainerRef}
           onScroll={handleScroll}
         >
-          {OCTAVES.map(octave =>
-            NOTES.map(note => {
+          {[...OCTAVES].reverse().map(octave =>
+            [...NOTES].reverse().map(note => {
               const isBlack = isBlackKey(note);
               const isC4 = note === 'C' && octave === 4;
               return (
@@ -255,7 +369,7 @@ export default function PianoRoll({
 
         {/* Grid */}
         <div 
-          className="relative overflow-auto flex-1" 
+          className="relative overflow-x-auto overflow-y-auto flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
           ref={gridScrollRef}
           onScroll={handleScroll}
         >
@@ -292,7 +406,7 @@ export default function PianoRoll({
             {/* Horizontal lines */}
             {Array.from({ length: NOTES.length * OCTAVES.length + 1 }, (_, i) => {
               const noteIndex = i % NOTES.length;
-              const note = NOTES[noteIndex];
+              const note = NOTES[NOTES.length - 1 - noteIndex];
               const isC = note === 'C';
               
               return (
@@ -317,17 +431,40 @@ export default function PianoRoll({
               if (y === -1) return null;
               
               return (
-                <rect
-                  key={note.id}
-                  x={x + 1}
-                  y={y + 1}
-                  width={width}
-                  height={CELL_HEIGHT - 2}
-                  fill="#3B82F6"
-                  stroke="#1E40AF"
-                  strokeWidth={1}
-                  rx={2}
-                />
+                <g key={note.id}>
+                  <rect
+                    x={x + 1}
+                    y={y + 1}
+                    width={width}
+                    height={CELL_HEIGHT - 2}
+                    fill="#3B82F6"
+                    stroke="#1E40AF"
+                    strokeWidth={1}
+                    rx={2}
+                  />
+                  {/* リサイズハンドル（左端） */}
+                  <rect
+                    x={x + 1}
+                    y={y + 3}
+                    width={6}
+                    height={CELL_HEIGHT - 6}
+                    fill="#1E40AF"
+                    stroke="#1E40AF"
+                    strokeWidth={1}
+                    rx={1}
+                  />
+                  {/* リサイズハンドル（右端） */}
+                  <rect
+                    x={x + width - 3}
+                    y={y + 3}
+                    width={6}
+                    height={CELL_HEIGHT - 6}
+                    fill="#1E40AF"
+                    stroke="#1E40AF"
+                    strokeWidth={1}
+                    rx={1}
+                  />
+                </g>
               );
             })}
             

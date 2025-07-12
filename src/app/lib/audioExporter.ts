@@ -15,9 +15,13 @@ export class AudioExporter {
     tracks: Track[], 
     measures: number, 
     bpm: number, 
-    format: 'wav' | 'mp3' = 'wav'
+    format: 'wav' | 'mp3' = 'wav',
+    bitDepth: 16 | 24 = 16,
+    filename: string = 'export'
   ): Promise<void> {
-    const duration = this.calculateDuration(measures, bpm);
+    // 実際のコンテンツに基づく長さを計算
+    const actualMeasures = this.calculateActualMeasures(tracks, measures);
+    const duration = this.calculateDuration(actualMeasures, bpm);
     const bufferLength = Math.ceil(duration * this.sampleRate);
     
     // オフラインオーディオコンテキストを作成
@@ -32,10 +36,39 @@ export class AudioExporter {
     
     // フォーマットに応じてダウンロード
     if (format === 'wav') {
-      this.downloadWAV(renderedBuffer);
+      this.downloadWAV(renderedBuffer, bitDepth, filename);
     } else {
-      await this.downloadMP3(renderedBuffer);
+      await this.downloadMP3(renderedBuffer, bitDepth, filename);
     }
+  }
+
+  private calculateActualMeasures(tracks: Track[], maxMeasures: number): number {
+    let lastMeasure = 1;
+    
+    tracks.forEach(track => {
+      if (track.type === 'synth' && track.notes) {
+        track.notes.forEach(note => {
+          // ノートの終了位置を小節数に変換（16分音符単位で計算）
+          const noteEndStep = note.start + note.duration;
+          const noteEndMeasure = Math.ceil(noteEndStep / 16);
+          lastMeasure = Math.max(lastMeasure, noteEndMeasure);
+        });
+      } else if (track.type === 'drum' && track.drumPattern) {
+        // ドラムパターンの場合、最後にノートがあるステップを確認
+        const pattern = track.drumPattern;
+        Object.values(pattern).forEach(steps => {
+          steps.forEach((active: boolean, stepIndex: number) => {
+            if (active) {
+              const stepMeasure = Math.ceil((stepIndex + 1) / 16);
+              lastMeasure = Math.max(lastMeasure, stepMeasure);
+            }
+          });
+        });
+      }
+    });
+    
+    // 最大小節数を超えないように制限し、少し余裕を持たせる
+    return Math.min(lastMeasure + 1, maxMeasures);
   }
 
   private calculateDuration(measures: number, bpm: number): number {
@@ -184,24 +217,25 @@ export class AudioExporter {
     return baseFreq * Math.pow(2, octave - 4);
   }
 
-  private downloadWAV(buffer: AudioBuffer): void {
-    const wav = this.audioBufferToWav(buffer);
+  private downloadWAV(buffer: AudioBuffer, bitDepth: 16 | 24 = 16, filename: string = 'export'): void {
+    const wav = this.audioBufferToWav(buffer, bitDepth);
     const blob = new Blob([wav], { type: 'audio/wav' });
-    this.downloadBlob(blob, 'export.wav');
+    this.downloadBlob(blob, `${filename}.wav`);
   }
 
-  private async downloadMP3(buffer: AudioBuffer): Promise<void> {
+  private async downloadMP3(buffer: AudioBuffer, bitDepth: 16 | 24 = 16, filename: string = 'export'): Promise<void> {
     // MP3エンコーディングは複雑なので、WAVとして保存
     // 実際のMP3エンコーディングには外部ライブラリが必要
     console.warn('MP3 export not fully implemented, saving as WAV instead');
-    this.downloadWAV(buffer);
+    this.downloadWAV(buffer, bitDepth, filename);
   }
 
-  private audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
+  private audioBufferToWav(buffer: AudioBuffer, bitDepth: 16 | 24 = 16): ArrayBuffer {
     const length = buffer.length;
     const numberOfChannels = buffer.numberOfChannels;
     const sampleRate = buffer.sampleRate;
-    const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
+    const bytesPerSample = bitDepth / 8;
+    const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * bytesPerSample);
     const view = new DataView(arrayBuffer);
 
     // WAVヘッダーを書き込み
@@ -212,26 +246,35 @@ export class AudioExporter {
     };
 
     writeString(0, 'RIFF');
-    view.setUint32(4, 36 + length * numberOfChannels * 2, true);
+    view.setUint32(4, 36 + length * numberOfChannels * bytesPerSample, true);
     writeString(8, 'WAVE');
     writeString(12, 'fmt ');
     view.setUint32(16, 16, true);
     view.setUint16(20, 1, true);
     view.setUint16(22, numberOfChannels, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-    view.setUint16(32, numberOfChannels * 2, true);
-    view.setUint16(34, 16, true);
+    view.setUint32(28, sampleRate * numberOfChannels * bytesPerSample, true);
+    view.setUint16(32, numberOfChannels * bytesPerSample, true);
+    view.setUint16(34, bitDepth, true);
     writeString(36, 'data');
-    view.setUint32(40, length * numberOfChannels * 2, true);
+    view.setUint32(40, length * numberOfChannels * bytesPerSample, true);
 
     // オーディオデータを書き込み
     let offset = 44;
     for (let i = 0; i < length; i++) {
       for (let channel = 0; channel < numberOfChannels; channel++) {
         const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
-        view.setInt16(offset, sample * 0x7FFF, true);
-        offset += 2;
+        
+        if (bitDepth === 16) {
+          view.setInt16(offset, sample * 0x7FFF, true);
+          offset += 2;
+        } else { // 24-bit
+          const intSample = Math.round(sample * 0x7FFFFF);
+          view.setUint8(offset, intSample & 0xFF);
+          view.setUint8(offset + 1, (intSample >> 8) & 0xFF);
+          view.setUint8(offset + 2, (intSample >> 16) & 0xFF);
+          offset += 3;
+        }
       }
     }
 
