@@ -131,10 +131,10 @@ export default function InlineMidiViewer({
                         e.stopPropagation();
                         onDeleteTrack(track.id);
                       }}
-                      className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded opacity-70 hover:opacity-100"
+                      className="px-2 py-1 bg-gray-600 hover:bg-gray-500 text-gray-300 hover:text-white text-xs rounded transition-colors"
                       title="Delete track"
                     >
-                      ×
+                      ✕
                     </button>
                   )}
                 </div>

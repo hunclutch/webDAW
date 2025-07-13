@@ -12,6 +12,7 @@ interface PianoRollProps {
   measures?: number;
   onMeasuresChange?: (measures: number) => void;
   trackType?: 'synth' | 'drum' | 'audio';
+  onClose?: () => void;
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -41,6 +42,7 @@ export default function PianoRoll({
   measures = INITIAL_MEASURES,
   onMeasuresChange,
   trackType = 'synth',
+  onClose,
 }: PianoRollProps) {
   // const [selectedNote, setSelectedNote] = useState<string | null>(null); // 未使用のためコメントアウト
   const [isDrawing, setIsDrawing] = useState(false);
@@ -413,8 +415,21 @@ export default function PianoRoll({
     }}>
       {/* Fixed Header */}
       <div className="flex items-center p-4 pb-2 border-b border-gray-700 flex-shrink-0">
-        <h3 className="text-white font-medium mr-6">Piano Roll</h3>
-        <div className="flex items-center space-x-4 flex-1">
+        <div className="flex items-center space-x-4">
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+              title="メインビューに戻る"
+            >
+              <span>←</span>
+              <span>戻る</span>
+            </button>
+          )}
+          <h3 className="text-white font-medium">Piano Roll</h3>
+        </div>
+        
+        <div className="flex items-center space-x-4 flex-1 ml-6">
           {onMeasuresChange && (
             <div className="flex items-center space-x-2">
               <label className="text-sm text-gray-400 whitespace-nowrap">Measures:</label>
@@ -453,15 +468,19 @@ export default function PianoRoll({
             </button>
           </div>
           
-          {/* Spacer to push Clear All to the right */}
+          {/* Spacer to push close button to the right */}
           <div className="flex-1"></div>
           
-          <button
-            onClick={() => onNotesChange([])}
-            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded whitespace-nowrap"
-          >
-            Clear All
-          </button>
+          {/* Close Button */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-8 h-8 bg-red-600 hover:bg-red-700 text-white text-lg rounded flex items-center justify-center transition-colors"
+              title="ピアノロールを閉じる"
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
 

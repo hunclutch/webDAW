@@ -37,16 +37,26 @@ export default function TrackMixer({
           SOLO
         </button>
         
-        <button
-          onClick={() => onMuteToggle(track.id)}
-          className={`px-2 py-1 text-xs rounded ${
-            track.muted
-              ? 'bg-red-500 text-white'
-              : 'bg-gray-600 text-white hover:bg-gray-500'
-          }`}
-        >
-          MUTE
-        </button>
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => onMuteToggle(track.id)}
+            className={`px-2 py-1 text-xs rounded ${
+              track.muted
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-600 text-white hover:bg-gray-500'
+            }`}
+          >
+            MUTE
+          </button>
+          
+          <button
+            onClick={() => onRemoveTrack(track.id)}
+            className="px-1 py-1 bg-gray-600 hover:bg-gray-500 text-gray-300 hover:text-white text-xs rounded transition-colors"
+            title="Delete track"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col items-center space-y-2 w-full">
@@ -85,12 +95,6 @@ export default function TrackMixer({
         </span>
       </div>
 
-      <button
-        onClick={() => onRemoveTrack(track.id)}
-        className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 text-xs rounded"
-      >
-        DELETE
-      </button>
     </div>
   );
 }

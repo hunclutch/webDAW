@@ -840,6 +840,7 @@ export default function Home() {
                         measures={measures}
                         onMeasuresChange={setMeasures}
                         trackType={selectedTrack.type}
+                        onClose={() => setSelectedTrackId(null)}
                       />
                     )}
                     

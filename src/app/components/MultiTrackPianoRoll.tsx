@@ -12,6 +12,7 @@ interface MultiTrackPianoRollProps {
   playheadPosition: number;
   measures?: number;
   onMeasuresChange?: (measures: number) => void;
+  onClose?: () => void;
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -44,6 +45,7 @@ export default function MultiTrackPianoRoll({
   playheadPosition,
   measures = INITIAL_MEASURES,
   onMeasuresChange,
+  onClose,
 }: MultiTrackPianoRollProps) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawMode, setDrawMode] = useState<'add' | 'remove' | 'resize' | 'move'>('add');
@@ -419,8 +421,21 @@ export default function MultiTrackPianoRoll({
     }}>
       {/* Fixed Header */}
       <div className="flex items-center p-4 pb-2 border-b border-gray-700 flex-shrink-0">
-        <h3 className="text-white font-medium mr-6">Multi-Track Piano Roll</h3>
-        <div className="flex items-center space-x-4 flex-1">
+        <div className="flex items-center space-x-4">
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+              title="メインビューに戻る"
+            >
+              <span>←</span>
+              <span>戻る</span>
+            </button>
+          )}
+          <h3 className="text-white font-medium">Multi-Track Piano Roll</h3>
+        </div>
+        
+        <div className="flex items-center space-x-4 flex-1 ml-6">
           {onMeasuresChange && (
             <div className="flex items-center space-x-2">
               <label className="text-sm text-gray-400 whitespace-nowrap">Measures:</label>
@@ -459,15 +474,17 @@ export default function MultiTrackPianoRoll({
             </button>
           </div>
           
-          {/* Spacer to push Clear Track to the right */}
+          {/* Spacer to push close button to the right */}
           <div className="flex-1"></div>
           
-          {selectedTrackId && (
+          {/* Close Button */}
+          {onClose && (
             <button
-              onClick={handleClearTrack}
-              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded whitespace-nowrap"
+              onClick={onClose}
+              className="w-8 h-8 bg-red-600 hover:bg-red-700 text-white text-lg rounded flex items-center justify-center transition-colors"
+              title="ピアノロールを閉じる"
             >
-              Clear Track
+              ×
             </button>
           )}
         </div>
