@@ -843,6 +843,8 @@ function HomeContent() {
                         onMeasuresChange={setMeasures}
                         trackType={selectedTrack.type}
                         onClose={() => setSelectedTrackId(null)}
+                        onPlay={handlePlay}
+                        onStop={handleStop}
                       />
                     )}
                     

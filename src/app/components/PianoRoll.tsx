@@ -13,6 +13,8 @@ interface PianoRollProps {
   onMeasuresChange?: (measures: number) => void;
   trackType?: 'synth' | 'drum' | 'audio';
   onClose?: () => void;
+  onPlay?: () => void;
+  onStop?: () => void;
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -43,6 +45,8 @@ export default function PianoRoll({
   onMeasuresChange,
   trackType = 'synth',
   onClose,
+  onPlay,
+  onStop,
 }: PianoRollProps) {
   // const [selectedNote, setSelectedNote] = useState<string | null>(null); // 未使用のためコメントアウト
   const [isDrawing, setIsDrawing] = useState(false);
@@ -430,6 +434,32 @@ export default function PianoRoll({
         </div>
         
         <div className="flex items-center space-x-4 flex-1 ml-6">
+          {/* Transport Controls */}
+          {(onPlay || onStop) && (
+            <div className="flex items-center space-x-2">
+              {onPlay && (
+                <button
+                  onClick={onPlay}
+                  disabled={isPlaying}
+                  className="w-8 h-8 bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:opacity-50 text-white rounded flex items-center justify-center transition-colors"
+                  title="Play"
+                >
+                  ▶
+                </button>
+              )}
+              {onStop && (
+                <button
+                  onClick={onStop}
+                  disabled={!isPlaying}
+                  className="w-8 h-8 bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:opacity-50 text-white rounded flex items-center justify-center transition-colors"
+                  title="Stop"
+                >
+                  ⏹
+                </button>
+              )}
+            </div>
+          )}
+          
           {onMeasuresChange && (
             <div className="flex items-center space-x-2">
               <label className="text-sm text-gray-400 whitespace-nowrap">Measures:</label>
