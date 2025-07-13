@@ -64,13 +64,12 @@ export class Synthesizer {
 
     const voice = new SynthVoice(this.audioContext, settings);
     voice.connect(this.masterGain);
-    voice.start(frequency, velocity, when);
+    voice.start(frequency, velocity, when, duration); // durationを渡す
     
     this.activeNotes.set(noteKey, voice);
 
     if (duration) {
       // ノート終了時に自動的にマップから削除
-      voice.stop(when + duration);
       setTimeout(() => {
         this.activeNotes.delete(noteKey);
       }, (when + duration - this.audioContext.currentTime) * 1000 + settings.release * 1000 + 100);
@@ -204,23 +203,53 @@ class SynthVoice {
     this.gainNode.connect(destination);
   }
 
-  start(frequency: number, velocity: number, when: number = this.audioContext.currentTime) {
+  start(frequency: number, velocity: number, when: number = this.audioContext.currentTime, duration?: number) {
     if (this.isPlaying) return;
     
     this.oscillator.frequency.setValueAtTime(frequency, when);
     
     const maxGain = velocity * 0.3; // Limit max volume
+    const sustainGain = maxGain * this.settings.sustain;
     
-    // ADSR Envelope - Attackとサステインまでの処理
-    this.gainNode.gain.setValueAtTime(0, when);
-    this.gainNode.gain.linearRampToValueAtTime(maxGain, when + this.settings.attack);
-    this.gainNode.gain.linearRampToValueAtTime(
-      maxGain * this.settings.sustain,
-      when + this.settings.attack + this.settings.decay
-    );
-    // サステインレベルを維持（Releaseまで）
+    if (duration) {
+      // デュレーションが指定されている場合は完全なADSRエンベロープを設定
+      const attackEnd = when + this.settings.attack;
+      const decayEnd = attackEnd + this.settings.decay;
+      const releaseStart = when + duration - this.settings.release;
+      const noteEnd = when + duration;
+      
+      // ADSR Envelope
+      this.gainNode.gain.setValueAtTime(0, when);
+      this.gainNode.gain.linearRampToValueAtTime(maxGain, attackEnd);
+      this.gainNode.gain.linearRampToValueAtTime(sustainGain, decayEnd);
+      
+      // サステインレベルを維持
+      if (releaseStart > decayEnd) {
+        this.gainNode.gain.setValueAtTime(sustainGain, releaseStart);
+      }
+      
+      // リリース
+      this.gainNode.gain.linearRampToValueAtTime(0, noteEnd);
+      
+      // オシレーターを指定時刻に停止
+      this.oscillator.start(when);
+      this.oscillator.stop(noteEnd);
+      
+      // クリーンアップをスケジュール
+      setTimeout(() => {
+        this.disconnect();
+        this.isPlaying = false;
+      }, Math.max(0, (noteEnd - this.audioContext.currentTime) * 1000) + 50);
+      
+    } else {
+      // デュレーションが指定されていない場合は従来の動作
+      this.gainNode.gain.setValueAtTime(0, when);
+      this.gainNode.gain.linearRampToValueAtTime(maxGain, when + this.settings.attack);
+      this.gainNode.gain.linearRampToValueAtTime(sustainGain, when + this.settings.attack + this.settings.decay);
+      
+      this.oscillator.start(when);
+    }
     
-    this.oscillator.start(when);
     this.isPlaying = true;
   }
 

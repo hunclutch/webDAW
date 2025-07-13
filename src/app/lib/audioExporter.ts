@@ -48,16 +48,16 @@ export class AudioExporter {
     tracks.forEach(track => {
       if (track.type === 'synth' && track.notes) {
         track.notes.forEach(note => {
-          // ノートの終了位置を小節数に変換（4分音符単位で計算）
+          // ノートの終了位置を小節数に変換（16分音符単位で計算）
           const noteEndStep = note.start + note.duration;
-          const noteEndMeasure = Math.ceil(noteEndStep / 4);
+          const noteEndMeasure = Math.ceil(noteEndStep / 16);
           lastMeasure = Math.max(lastMeasure, noteEndMeasure);
         });
       } else if (track.type === 'drum' && track.notes) {
         // ドラムトラックのノートも考慮
         track.notes.forEach(note => {
           const noteEndStep = note.start + note.duration;
-          const noteEndMeasure = Math.ceil(noteEndStep / 4);
+          const noteEndMeasure = Math.ceil(noteEndStep / 16);
           lastMeasure = Math.max(lastMeasure, noteEndMeasure);
         });
       } else if (track.type === 'drum' && track.drumPattern) {
@@ -117,7 +117,7 @@ export class AudioExporter {
     gainNode: GainNode, 
     bpm: number
   ): Promise<void> {
-    const stepDuration = 60 / bpm; // 4分音符の長さ
+    const stepDuration = (60 / bpm) / 4; // 16分音符の長さ（ピアノロールのグリッドと一致）
 
     for (const note of track.notes) {
       const frequency = this.noteToFrequency(note.note, note.octave);
@@ -182,7 +182,7 @@ export class AudioExporter {
     gainNode: GainNode, 
     bpm: number
   ): Promise<void> {
-    const stepDuration = 60 / bpm; // 4分音符の長さ
+    const stepDuration = (60 / bpm) / 4; // 16分音符の長さ（ピアノロールのグリッドと一致）
 
     for (const note of track.notes) {
       const startTime = Math.max(0, note.start * stepDuration);

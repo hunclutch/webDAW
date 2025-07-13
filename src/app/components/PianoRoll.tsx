@@ -251,16 +251,18 @@ export default function PianoRoll({
     } else if (isResizing && resizeTarget && resizeEdge) {
       // 既存ノートのリサイズ中
       if (resizeEdge === 'end') {
-        // 右端をドラッグ - 長さを変更
-        const newDuration = Math.max(1, step - resizeTarget.start + 1);
+        // 右端をドラッグ - 右に伸びる（正の方向）、左に縮む（負の方向）
+        const newEnd = Math.max(resizeTarget.start + 1, step + 1); // 最小1ステップの長さを保証
+        const newDuration = newEnd - resizeTarget.start;
         const updatedNotes = notes.map(n => 
           n.id === resizeTarget.id ? { ...n, duration: newDuration } : n
         );
         onNotesChange(updatedNotes);
       } else if (resizeEdge === 'start') {
-        // 左端をドラッグ - 開始位置と長さを変更
-        const newStart = Math.max(0, Math.min(step, resizeTarget.start + resizeTarget.duration - 1));
-        const newDuration = resizeTarget.start + resizeTarget.duration - newStart;
+        // 左端をドラッグ - 左に伸びる（負の方向）、右に縮む（正の方向）
+        const originalEnd = resizeTarget.start + resizeTarget.duration;
+        const newStart = Math.max(0, Math.min(step, originalEnd - 1)); // 最小1ステップの長さを保証
+        const newDuration = originalEnd - newStart;
         const updatedNotes = notes.map(n => 
           n.id === resizeTarget.id ? { ...n, start: newStart, duration: newDuration } : n
         );
@@ -548,47 +550,82 @@ export default function PianoRoll({
             {notes.map(note => {
               const x = stepToPosition(note.start);
               const y = noteToPosition(note.note, note.octave);
-              const width = CELL_WIDTH * note.duration - 2;
+              const width = CELL_WIDTH * note.duration - 3;
               
               if (y === -1) return null;
               
               return (
                 <g key={note.id}>
+                  {/* メインノートボディ */}
                   <rect
-                    x={x + 1}
-                    y={y + 1}
+                    x={x + 2}
+                    y={y + 2}
                     width={width}
-                    height={CELL_HEIGHT - 2}
-                    fill="#3B82F6"
+                    height={CELL_HEIGHT - 4}
+                    fill="url(#noteGradient)"
                     stroke="#1E40AF"
-                    strokeWidth={1}
+                    strokeWidth={2}
+                    rx={4}
+                    style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
+                  />
+                  {/* インナーハイライト */}
+                  <rect
+                    x={x + 3}
+                    y={y + 3}
+                    width={Math.max(0, width - 2)}
+                    height={2}
+                    fill="rgba(255,255,255,0.3)"
                     rx={2}
                   />
                   {/* リサイズハンドル（左端） */}
                   <rect
-                    x={x + 1}
-                    y={y + 3}
-                    width={6}
-                    height={CELL_HEIGHT - 6}
-                    fill="#1E40AF"
+                    x={x + 2}
+                    y={y + 4}
+                    width={4}
+                    height={CELL_HEIGHT - 8}
+                    fill="#60A5FA"
                     stroke="#1E40AF"
                     strokeWidth={1}
-                    rx={1}
+                    rx={2}
+                    style={{ opacity: 0.8 }}
                   />
                   {/* リサイズハンドル（右端） */}
                   <rect
-                    x={x + width - 3}
-                    y={y + 3}
-                    width={6}
-                    height={CELL_HEIGHT - 6}
-                    fill="#1E40AF"
+                    x={x + width - 2}
+                    y={y + 4}
+                    width={4}
+                    height={CELL_HEIGHT - 8}
+                    fill="#60A5FA"
                     stroke="#1E40AF"
                     strokeWidth={1}
-                    rx={1}
+                    rx={2}
+                    style={{ opacity: 0.8 }}
                   />
+                  {/* ノート名表示（長いノートのみ） */}
+                  {width > 40 && (
+                    <text
+                      x={x + 8}
+                      y={y + CELL_HEIGHT / 2 + 3}
+                      fontSize="10"
+                      fill="white"
+                      fontFamily="monospace"
+                      style={{ pointerEvents: 'none', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
+                    >
+                      {note.note}{note.octave}
+                    </text>
+                  )}
                 </g>
               );
             })}
+            
+            {/* グラデーション定義 */}
+            <defs>
+              <linearGradient id="noteGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#60A5FA" />
+                <stop offset="50%" stopColor="#3B82F6" />
+                <stop offset="100%" stopColor="#1E40AF" />
+              </linearGradient>
+            </defs>
             
             {/* Playhead */}
             {isPlaying && (
