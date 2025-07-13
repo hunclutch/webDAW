@@ -17,6 +17,7 @@ import VirtualKeyboard from './components/VirtualKeyboard';
 import DrumPads from './components/DrumPads';
 import EffectRack from './components/EffectRack';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { useKeyboardPiano } from './hooks/useKeyboardPiano';
 
 function HomeContent() {
   const { theme } = useTheme();
@@ -322,7 +323,7 @@ function HomeContent() {
           audioEngine.getSequencer().playDrumPreview(drumType);
         }
       } else {
-        // シンセトラックの場合
+        // シンセ・ベーストラックの場合
         audioEngine.getSequencer().playNotePreview(note, octave);
       }
     }
@@ -418,6 +419,14 @@ function HomeContent() {
 
   const selectedTrack = dawState.tracks?.find(track => track.id === selectedTrackId) || null;
   const playheadPosition = audioEngine ? audioEngine.getPlayheadPosition() : 0;
+
+  // キーボードピアノ機能の設定
+  useKeyboardPiano({
+    onNotePlay: (note: string, octave: number) => {
+      handleNotePreview(note, octave);
+    },
+    enabled: true, // キーボード機能を常に有効にする
+  });
 
   return (
       <div className={`h-screen flex flex-col overflow-hidden ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-slate-50 text-slate-900'}`}>
@@ -644,7 +653,8 @@ function HomeContent() {
                         
                         // トラックタイプに応じてタブを切り替える
                         if (track.type === 'synth') setActiveTab('pianoroll');
-                        if (track.type === 'drum') setActiveTab('pianoroll'); // ドラムもピアノロールをデフォルトに
+                        if (track.type === 'drum') setActiveTab('drums'); // ドラムはDrum Padsをデフォルトに
+                        if (track.type === 'bass') setActiveTab('pianoroll'); // ベースもピアノロールをデフォルトに
                         setShowPianoRoll(true);
                       }
                     }}
@@ -733,9 +743,9 @@ function HomeContent() {
                       </div>
                     ) : (
                       <>
-                        {selectedTrack.type === 'synth' && (
+                        {(selectedTrack.type === 'synth' || selectedTrack.type === 'bass') && (
                           <div className="px-3 py-1 text-sm text-gray-400">
-                            {selectedTrack.name} - Piano Roll
+                            {selectedTrack.name} - {selectedTrack.type === 'bass' ? 'Bass Generator' : 'Piano Roll'}
                           </div>
                         )}
                         {selectedTrack.type === 'drum' && (
@@ -832,7 +842,7 @@ function HomeContent() {
                 ) : (
                   // Show individual track editor when track is selected
                   <>
-                    {activeTab === 'pianoroll' && (selectedTrack.type === 'synth' || selectedTrack.type === 'drum') && (
+                    {activeTab === 'pianoroll' && (selectedTrack.type === 'synth' || selectedTrack.type === 'drum' || selectedTrack.type === 'bass') && (
                       <PianoRoll
                         notes={selectedTrack.notes}
                         onNotesChange={handleNotesChange}
@@ -842,6 +852,7 @@ function HomeContent() {
                         measures={measures}
                         onMeasuresChange={setMeasures}
                         trackType={selectedTrack.type}
+                        drumPattern={selectedTrack.drumPattern}
                         onClose={() => setSelectedTrackId(null)}
                         onPlay={handlePlay}
                         onStop={handleStop}

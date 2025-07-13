@@ -45,7 +45,7 @@ export default function InlineMidiViewer({
   const gridScrollRef = useRef<HTMLDivElement>(null);
   
   const gridWidth = measures * STEPS_PER_MEASURE;
-  const synthTracks = tracks.filter(track => track.type === 'synth');
+  const allTracks = tracks; // すべてのトラックを表示（synth, drum, bass）
 
   const handleScroll = useCallback(() => {
     // スクロールイベントの処理
@@ -92,7 +92,7 @@ export default function InlineMidiViewer({
             />
           </div>
           <div className="text-sm text-gray-400 whitespace-nowrap">
-            {synthTracks.length} tracks
+            {allTracks.length} tracks
           </div>
         </div>
       </div>
@@ -103,7 +103,7 @@ export default function InlineMidiViewer({
       <div className="flex">
         {/* Track Labels - サイドトラックと同じスタイル */}
         <div className="w-80 flex flex-col border-r border-gray-700">
-          {synthTracks.map((track, index) => (
+          {allTracks.map((track, index) => (
             <div
               key={track.id}
               className={`p-3 cursor-pointer transition-all hover:bg-gray-700 border-b border-gray-700 ${
@@ -123,7 +123,12 @@ export default function InlineMidiViewer({
                       className="w-3 h-3 rounded"
                       style={{ backgroundColor: getTrackColor(index) }}
                     />
-                    <span className="text-xs text-gray-400">{track.notes.length}</span>
+                    <span className="text-xs text-gray-400">
+                      {track.type === 'drum' && track.drumPattern && track.notes.length === 0
+                        ? track.drumPattern.steps.filter(step => step.kick || step.snare || step.hihat || step.openhat || step.crash).length
+                        : track.notes.length
+                      }
+                    </span>
                   </div>
                   {onDeleteTrack && (
                     <button
@@ -158,9 +163,9 @@ export default function InlineMidiViewer({
               </div>
             </div>
           ))}
-          {synthTracks.length === 0 && (
+          {allTracks.length === 0 && (
             <div className="h-15 flex items-center justify-center text-gray-400 text-sm">
-              No synth tracks
+              No tracks
             </div>
           )}
         </div>
@@ -176,7 +181,7 @@ export default function InlineMidiViewer({
             <svg
               className="absolute top-0 left-0 pointer-events-none"
               width={gridWidth * CELL_WIDTH}
-              height={synthTracks.length * TRACK_HEIGHT}
+              height={allTracks.length * TRACK_HEIGHT}
             >
               {/* Vertical lines (measures) */}
               {Array.from({ length: measures + 1 }, (_, i) => (
@@ -185,7 +190,7 @@ export default function InlineMidiViewer({
                   x1={i * STEPS_PER_MEASURE * CELL_WIDTH}
                   y1={0}
                   x2={i * STEPS_PER_MEASURE * CELL_WIDTH}
-                  y2={synthTracks.length * TRACK_HEIGHT}
+                  y2={allTracks.length * TRACK_HEIGHT}
                   stroke="#4B5563"
                   strokeWidth={2}
                 />
@@ -198,14 +203,14 @@ export default function InlineMidiViewer({
                   x1={i * CELL_WIDTH}
                   y1={0}
                   x2={i * 4 * CELL_WIDTH}
-                  y2={synthTracks.length * TRACK_HEIGHT}
+                  y2={allTracks.length * TRACK_HEIGHT}
                   stroke="#374151"
                   strokeWidth={1}
                 />
               ))}
 
               {/* Track separator lines */}
-              {Array.from({ length: synthTracks.length + 1 }, (_, i) => (
+              {Array.from({ length: allTracks.length + 1 }, (_, i) => (
                 <line
                   key={`track-${i}`}
                   x1={0}
@@ -217,51 +222,87 @@ export default function InlineMidiViewer({
                 />
               ))}
               
-              {/* Notes for each track */}
-              {synthTracks.map((track, trackIndex) => {
+              {/* Notes/Patterns for each track */}
+              {allTracks.map((track, trackIndex) => {
                 const trackColor = getTrackColor(trackIndex);
                 const trackY = trackIndex * TRACK_HEIGHT;
                 
-                // Group notes by time to create MIDI blocks
-                const noteBlocks: { [key: number]: { minPitch: number; maxPitch: number; duration: number; count: number } } = {};
-                
-                track.notes.forEach(note => {
-                  const step = Math.floor(note.start);
-                  const pitch = noteToMidiNumber(note.note, note.octave);
+                if (track.type === 'drum' && track.drumPattern && track.notes.length === 0) {
+                  // ドラムパターンを表示（ノートがない場合）
+                  const drumBlocks: React.ReactElement[] = [];
                   
-                  if (!noteBlocks[step]) {
-                    noteBlocks[step] = { minPitch: pitch, maxPitch: pitch, duration: note.duration, count: 1 };
-                  } else {
-                    noteBlocks[step].minPitch = Math.min(noteBlocks[step].minPitch, pitch);
-                    noteBlocks[step].maxPitch = Math.max(noteBlocks[step].maxPitch, pitch);
-                    noteBlocks[step].duration = Math.max(noteBlocks[step].duration, note.duration);
-                    noteBlocks[step].count++;
+                  for (let measure = 0; measure < measures; measure++) {
+                    track.drumPattern.steps.forEach((step, stepIndex) => {
+                      const hasActiveStep = step.kick || step.snare || step.hihat || step.openhat || step.crash;
+                      if (hasActiveStep) {
+                        // STEPS_PER_MEASUREは4分音符単位なので、16分音符のstepIndexを4分音符に変換
+                        const quarterNoteStep = measure * STEPS_PER_MEASURE + Math.floor(stepIndex / 4);
+                        const x = stepToPosition(quarterNoteStep);
+                        const width = Math.max(2, CELL_WIDTH / 4);
+                        const height = Math.max(6, TRACK_HEIGHT - 20);
+                        const y = trackY + (TRACK_HEIGHT - height) / 2;
+                        
+                        drumBlocks.push(
+                          <rect
+                            key={`${track.id}-drum-${measure}-${stepIndex}`}
+                            x={x + (stepIndex % 4) * (CELL_WIDTH / 4) + 1}
+                            y={y}
+                            width={width}
+                            height={height}
+                            fill={trackColor}
+                            fillOpacity={selectedTrackId === track.id ? 1 : 0.7}
+                            stroke={trackColor}
+                            strokeWidth={selectedTrackId === track.id ? 2 : 1}
+                            rx={1}
+                          />
+                        );
+                      }
+                    });
                   }
-                });
-                
-                return Object.entries(noteBlocks).map(([step, block]) => {
-                  const x = stepToPosition(parseInt(step));
-                  const width = Math.max(4, CELL_WIDTH * block.duration - 1);
-                  const height = Math.max(8, Math.min(TRACK_HEIGHT - 10, 
-                    Math.max(12, (block.maxPitch - block.minPitch + 1) * 2 + block.count * 2)
-                  ));
-                  const y = trackY + (TRACK_HEIGHT - height) / 2;
                   
-                  return (
-                    <rect
-                      key={`${track.id}-${step}`}
-                      x={x + 1}
-                      y={y}
-                      width={width}
-                      height={height}
-                      fill={trackColor}
-                      fillOpacity={selectedTrackId === track.id ? 1 : 0.7}
-                      stroke={trackColor}
-                      strokeWidth={selectedTrackId === track.id ? 2 : 1}
-                      rx={2}
-                    />
-                  );
-                });
+                  return drumBlocks;
+                } else {
+                  // 通常のノート表示（synth, bass, drumのノート）
+                  const noteBlocks: { [key: number]: { minPitch: number; maxPitch: number; duration: number; count: number } } = {};
+                  
+                  track.notes.forEach(note => {
+                    const step = Math.floor(note.start);
+                    const pitch = noteToMidiNumber(note.note, note.octave);
+                    
+                    if (!noteBlocks[step]) {
+                      noteBlocks[step] = { minPitch: pitch, maxPitch: pitch, duration: note.duration, count: 1 };
+                    } else {
+                      noteBlocks[step].minPitch = Math.min(noteBlocks[step].minPitch, pitch);
+                      noteBlocks[step].maxPitch = Math.max(noteBlocks[step].maxPitch, pitch);
+                      noteBlocks[step].duration = Math.max(noteBlocks[step].duration, note.duration);
+                      noteBlocks[step].count++;
+                    }
+                  });
+                  
+                  return Object.entries(noteBlocks).map(([step, block]) => {
+                    const x = stepToPosition(parseInt(step));
+                    const width = Math.max(4, CELL_WIDTH * block.duration - 1);
+                    const height = Math.max(8, Math.min(TRACK_HEIGHT - 10, 
+                      Math.max(12, (block.maxPitch - block.minPitch + 1) * 2 + block.count * 2)
+                    ));
+                    const y = trackY + (TRACK_HEIGHT - height) / 2;
+                    
+                    return (
+                      <rect
+                        key={`${track.id}-${step}`}
+                        x={x + 1}
+                        y={y}
+                        width={width}
+                        height={height}
+                        fill={trackColor}
+                        fillOpacity={selectedTrackId === track.id ? 1 : 0.7}
+                        stroke={trackColor}
+                        strokeWidth={selectedTrackId === track.id ? 2 : 1}
+                        rx={2}
+                      />
+                    );
+                  });
+                }
               })}
               
               {/* Playhead */}
@@ -270,7 +311,7 @@ export default function InlineMidiViewer({
                   x1={stepToPosition(playheadPosition)}
                   y1={0}
                   x2={stepToPosition(playheadPosition)}
-                  y2={synthTracks.length * TRACK_HEIGHT}
+                  y2={allTracks.length * TRACK_HEIGHT}
                   stroke="#EF4444"
                   strokeWidth={3}
                 />
@@ -282,9 +323,9 @@ export default function InlineMidiViewer({
       </div>
 
       {/* Instructions */}
-      {synthTracks.length === 0 && (
+      {allTracks.length === 0 && (
         <div className="p-4 pt-2 text-center text-gray-400">
-          <p>Create synth tracks to see MIDI arrangement</p>
+          <p>Create tracks to see arrangement</p>
         </div>
       )}
     </div>

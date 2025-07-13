@@ -88,6 +88,22 @@ export default function TrackCreator({ onCreateTrack }: TrackCreatorProps) {
     onCreateTrack(track);
   };
 
+  const createBassTrack = () => {
+    const track: Omit<Track, 'id'> = {
+      name: 'Bass Track',
+      type: 'bass',
+      audioBuffer: null,
+      volume: 0.8,
+      pan: 0,
+      muted: false,
+      soloed: false,
+      effects: [],
+      notes: [],
+      synthSettings: SYNTH_PRESETS.bass,
+    };
+    onCreateTrack(track);
+  };
+
   return (
     <div className="bg-gray-800 rounded-lg p-6">
       <h2 className="text-xl font-semibold text-white mb-6">Create New Track</h2>
@@ -112,6 +128,25 @@ export default function TrackCreator({ onCreateTrack }: TrackCreatorProps) {
                 </div>
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Bass Track */}
+        <div>
+          <h3 className="text-lg font-medium text-white mb-3">Bass</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              onClick={createBassTrack}
+              className="p-4 bg-gradient-to-br from-green-600 to-green-800 hover:from-green-500 hover:to-green-700 text-white rounded-lg transition-all transform hover:scale-105"
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-2">🎸</div>
+                <div className="font-medium">Bass Generator</div>
+                <div className="text-xs opacity-75 mt-1">
+                  Auto-generate from chords
+                </div>
+              </div>
+            </button>
           </div>
         </div>
 

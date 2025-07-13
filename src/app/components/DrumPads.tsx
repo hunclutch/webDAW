@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { DrumPattern, DrumStep } from '../types/audio';
+import DrumPatternGenerator from './DrumPatternGenerator';
 
 interface DrumPadsProps {
   pattern: DrumPattern;
@@ -25,6 +27,7 @@ export default function DrumPads({
   isPlaying,
   currentStep,
 }: DrumPadsProps) {
+  const [showGenerator, setShowGenerator] = useState(false);
   const toggleStep = (stepIndex: number, drumType: string) => {
     const newSteps = [...pattern.steps];
     const step = newSteps[stepIndex];
@@ -88,6 +91,17 @@ export default function DrumPads({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-white font-medium">Drum Machine</h3>
         <div className="flex space-x-2">
+          <button
+            onClick={() => setShowGenerator(!showGenerator)}
+            className={`px-3 py-1 text-sm rounded transition-colors ${
+              showGenerator
+                ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                : 'bg-gray-600 hover:bg-gray-500 text-white'
+            }`}
+            title="Pattern Generator"
+          >
+            🥁 Generator
+          </button>
           <button
             onClick={randomizePattern}
             className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded"
@@ -187,6 +201,16 @@ export default function DrumPads({
           </div>
         ))}
       </div>
+
+      {/* Pattern Generator */}
+      {showGenerator && (
+        <div className="mt-6 border-t border-gray-700 pt-4">
+          <DrumPatternGenerator
+            onGeneratePattern={onPatternChange}
+            currentPattern={pattern}
+          />
+        </div>
+      )}
 
       <div className="mt-4 text-xs text-gray-400">
         Click pads to play sounds • Click grid to program pattern

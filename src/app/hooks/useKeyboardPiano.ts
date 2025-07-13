@@ -8,42 +8,44 @@ export interface KeyMapping {
   octave: number;
 }
 
-// キーボードレイアウト（QWERTY）に基づくマッピング
+// キーボードレイアウト（ASD配列）に基づくマッピング
 const DEFAULT_KEY_MAPPINGS: KeyMapping[] = [
-  // 下段（低音）- ZXCVBNM...
+  // 中段（メインオクターブ4）- ASDFGHJK...
+  { key: 'a', note: 'C', octave: 4 },
+  { key: 'w', note: 'C#', octave: 4 },
+  { key: 's', note: 'D', octave: 4 },
+  { key: 'e', note: 'D#', octave: 4 },
+  { key: 'd', note: 'E', octave: 4 },
+  { key: 'f', note: 'F', octave: 4 },
+  { key: 't', note: 'F#', octave: 4 },
+  { key: 'g', note: 'G', octave: 4 },
+  { key: 'y', note: 'G#', octave: 4 },
+  { key: 'h', note: 'A', octave: 4 },
+  { key: 'u', note: 'A#', octave: 4 },
+  { key: 'j', note: 'B', octave: 4 },
+  
+  // 下段（低音オクターブ3）- ZXCVBNM...
   { key: 'z', note: 'C', octave: 3 },
-  { key: 's', note: 'C#', octave: 3 },
   { key: 'x', note: 'D', octave: 3 },
-  { key: 'd', note: 'D#', octave: 3 },
   { key: 'c', note: 'E', octave: 3 },
   { key: 'v', note: 'F', octave: 3 },
-  { key: 'g', note: 'F#', octave: 3 },
   { key: 'b', note: 'G', octave: 3 },
-  { key: 'h', note: 'G#', octave: 3 },
   { key: 'n', note: 'A', octave: 3 },
-  { key: 'j', note: 'A#', octave: 3 },
   { key: 'm', note: 'B', octave: 3 },
   
-  // 中段（中音）- ASDFGH...
-  { key: 'q', note: 'C', octave: 4 },
-  { key: '2', note: 'C#', octave: 4 },
-  { key: 'w', note: 'D', octave: 4 },
-  { key: '3', note: 'D#', octave: 4 },
-  { key: 'e', note: 'E', octave: 4 },
-  { key: 'r', note: 'F', octave: 4 },
-  { key: '5', note: 'F#', octave: 4 },
-  { key: 't', note: 'G', octave: 4 },
-  { key: '6', note: 'G#', octave: 4 },
-  { key: 'y', note: 'A', octave: 4 },
-  { key: '7', note: 'A#', octave: 4 },
-  { key: 'u', note: 'B', octave: 4 },
-  
-  // 上段（高音）- 12345...
-  { key: 'i', note: 'C', octave: 5 },
-  { key: '9', note: 'C#', octave: 5 },
-  { key: 'o', note: 'D', octave: 5 },
-  { key: '0', note: 'D#', octave: 5 },
-  { key: 'p', note: 'E', octave: 5 },
+  // 上段（高音オクターブ5）- QWERTY...
+  { key: 'q', note: 'C', octave: 5 },
+  { key: '2', note: 'C#', octave: 5 },
+  { key: 'w', note: 'D', octave: 5 },
+  { key: '3', note: 'D#', octave: 5 },
+  { key: 'e', note: 'E', octave: 5 },
+  { key: 'r', note: 'F', octave: 5 },
+  { key: '5', note: 'F#', octave: 5 },
+  { key: 't', note: 'G', octave: 5 },
+  { key: '6', note: 'G#', octave: 5 },
+  { key: 'y', note: 'A', octave: 5 },
+  { key: '7', note: 'A#', octave: 5 },
+  { key: 'u', note: 'B', octave: 5 },
 ];
 
 interface UseKeyboardPianoOptions {

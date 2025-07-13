@@ -1,7 +1,7 @@
 export interface Track {
   id: string;
   name: string;
-  type: 'synth' | 'drum' | 'audio';
+  type: 'synth' | 'drum' | 'bass' | 'audio';
   audioBuffer: AudioBuffer | null;
   volume: number;
   pan: number;
@@ -84,7 +84,7 @@ export interface ProjectFile {
 export interface ProjectTrack {
   id: string;
   name: string;
-  type: 'synth' | 'drum' | 'audio';
+  type: 'synth' | 'drum' | 'bass' | 'audio';
   volume: number;
   pan: number;
   muted: boolean;

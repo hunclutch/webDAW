@@ -109,8 +109,8 @@ export class Sequencer {
     this.tracks.forEach(track => {
       if (track.muted) return;
       
-      if (track.type === 'synth' && track.notes.length > 0) {
-        // シンセトラックのノート再生
+      if ((track.type === 'synth' || track.type === 'bass') && track.notes.length > 0) {
+        // シンセ・ベーストラックのノート再生
         this.scheduleNotesForTrack(track, currentTime, endTime, currentAudioTime);
       } else if (track.type === 'drum') {
         if (track.notes.length > 0) {
@@ -156,7 +156,7 @@ export class Sequencer {
               }, (noteStartTime - this.audioContext.currentTime) * 1000);
             }
           } else {
-            // シンセノートの場合
+            // シンセ・ベースノートの場合
             this.synthesizer.playNote(
               note.note,
               note.octave,
@@ -228,14 +228,14 @@ export class Sequencer {
   // Utility methods for editing
   addNoteToTrack(trackId: string, note: Note) {
     const track = this.tracks.find(t => t.id === trackId);
-    if (track && track.type === 'synth') {
+    if (track && (track.type === 'synth' || track.type === 'bass')) {
       track.notes.push(note);
     }
   }
 
   removeNoteFromTrack(trackId: string, noteId: string) {
     const track = this.tracks.find(t => t.id === trackId);
-    if (track && track.type === 'synth') {
+    if (track && (track.type === 'synth' || track.type === 'bass')) {
       track.notes = track.notes.filter(n => n.id !== noteId);
     }
   }

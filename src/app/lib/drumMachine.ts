@@ -118,15 +118,27 @@ export class DrumMachine {
 
   private async createKickDrum(): Promise<AudioBuffer> {
     const sampleRate = this.audioContext.sampleRate;
-    const duration = 0.5;
+    const duration = 0.6;
     const buffer = this.audioContext.createBuffer(1, sampleRate * duration, sampleRate);
     const data = buffer.getChannelData(0);
 
     for (let i = 0; i < data.length; i++) {
       const t = i / sampleRate;
-      const freq = 60 * Math.exp(-t * 30); // Frequency sweep from 60Hz down
-      const envelope = Math.exp(-t * 5); // Exponential decay
-      data[i] = Math.sin(2 * Math.PI * freq * t) * envelope * 0.3;
+      
+      // より自然な周波数スイープ（90Hz → 45Hz）
+      const freq = 90 * Math.exp(-t * 8);
+      
+      // より自然なエンベロープ（アタック + ディケイ）
+      const attack = t < 0.01 ? t / 0.01 : 1;
+      const decay = Math.exp(-t * 4);
+      const envelope = attack * decay;
+      
+      // サブハーモニクスを追加してより豊かな音に
+      const fundamental = Math.sin(2 * Math.PI * freq * t);
+      const subharmonic = Math.sin(2 * Math.PI * freq * 0.5 * t) * 0.3;
+      const click = Math.exp(-t * 100) * (Math.random() * 2 - 1) * 0.1; // アタックのクリック音
+      
+      data[i] = (fundamental + subharmonic + click) * envelope * 0.4;
     }
 
     return buffer;
@@ -134,16 +146,28 @@ export class DrumMachine {
 
   private async createSnareDrum(): Promise<AudioBuffer> {
     const sampleRate = this.audioContext.sampleRate;
-    const duration = 0.2;
+    const duration = 0.25;
     const buffer = this.audioContext.createBuffer(1, sampleRate * duration, sampleRate);
     const data = buffer.getChannelData(0);
 
     for (let i = 0; i < data.length; i++) {
       const t = i / sampleRate;
-      const envelope = Math.exp(-t * 30);
-      const tone = Math.sin(2 * Math.PI * 200 * t) * 0.3;
-      const noise = (Math.random() * 2 - 1) * 0.7;
-      data[i] = (tone + noise) * envelope * 0.2;
+      
+      // より自然なエンベロープ
+      const attack = t < 0.005 ? t / 0.005 : 1;
+      const decay = Math.exp(-t * 25);
+      const envelope = attack * decay;
+      
+      // 複数の周波数成分でよりリアルなスネア音
+      const fundamental = Math.sin(2 * Math.PI * 200 * t) * 0.2;
+      const harmonic1 = Math.sin(2 * Math.PI * 400 * t) * 0.15;
+      const harmonic2 = Math.sin(2 * Math.PI * 800 * t) * 0.1;
+      
+      // より自然なノイズ（バンドパスフィルター効果）
+      const noise = (Math.random() * 2 - 1);
+      const filteredNoise = noise * (1 + Math.sin(2 * Math.PI * 4000 * t) * 0.3) * 0.6;
+      
+      data[i] = (fundamental + harmonic1 + harmonic2 + filteredNoise) * envelope * 0.3;
     }
 
     return buffer;
@@ -151,17 +175,32 @@ export class DrumMachine {
 
   private async createHiHat(): Promise<AudioBuffer> {
     const sampleRate = this.audioContext.sampleRate;
-    const duration = 0.1;
+    const duration = 0.12;
     const buffer = this.audioContext.createBuffer(1, sampleRate * duration, sampleRate);
     const data = buffer.getChannelData(0);
 
     for (let i = 0; i < data.length; i++) {
       const t = i / sampleRate;
-      const envelope = Math.exp(-t * 50);
-      const noise = (Math.random() * 2 - 1);
-      // High-pass filter effect by emphasizing high frequencies
-      const filtered = noise * (1 + Math.sin(2 * Math.PI * 8000 * t) * 0.5);
-      data[i] = filtered * envelope * 0.1;
+      
+      // より自然なクローズドハイハットのエンベロープ
+      const attack = t < 0.002 ? t / 0.002 : 1;
+      const decay = Math.exp(-t * 60);
+      const envelope = attack * decay;
+      
+      // 複数の高周波ノイズを重ねてリアルなハイハット音
+      const noise1 = (Math.random() * 2 - 1);
+      const noise2 = (Math.random() * 2 - 1);
+      const noise3 = (Math.random() * 2 - 1);
+      
+      // 異なる周波数帯のフィルタリング
+      const filtered1 = noise1 * Math.sin(2 * Math.PI * 8000 * t) * 0.4;
+      const filtered2 = noise2 * Math.sin(2 * Math.PI * 12000 * t) * 0.3;
+      const filtered3 = noise3 * Math.sin(2 * Math.PI * 16000 * t) * 0.2;
+      
+      // メタリックな響きを追加
+      const metallic = Math.sin(2 * Math.PI * 10000 * t * (1 + noise1 * 0.1)) * 0.1;
+      
+      data[i] = (filtered1 + filtered2 + filtered3 + metallic) * envelope * 0.15;
     }
 
     return buffer;
@@ -169,16 +208,33 @@ export class DrumMachine {
 
   private async createOpenHat(): Promise<AudioBuffer> {
     const sampleRate = this.audioContext.sampleRate;
-    const duration = 0.3;
+    const duration = 0.4;
     const buffer = this.audioContext.createBuffer(1, sampleRate * duration, sampleRate);
     const data = buffer.getChannelData(0);
 
     for (let i = 0; i < data.length; i++) {
       const t = i / sampleRate;
-      const envelope = Math.exp(-t * 8);
-      const noise = (Math.random() * 2 - 1);
-      const filtered = noise * (1 + Math.sin(2 * Math.PI * 6000 * t) * 0.3);
-      data[i] = filtered * envelope * 0.15;
+      
+      // オープンハイハット特有の長いディケイ
+      const attack = t < 0.005 ? t / 0.005 : 1;
+      const decay = Math.exp(-t * 6);
+      const envelope = attack * decay;
+      
+      // より複雑なノイズ構造
+      const noise1 = (Math.random() * 2 - 1);
+      const noise2 = (Math.random() * 2 - 1);
+      
+      // 異なる周波数帯で個性的なサウンド
+      const filtered1 = noise1 * Math.sin(2 * Math.PI * 6000 * t) * 0.4;
+      const filtered2 = noise2 * Math.sin(2 * Math.PI * 9000 * t) * 0.3;
+      
+      // シズル感を表現するための高周波ノイズ
+      const sizzle = (Math.random() * 2 - 1) * Math.sin(2 * Math.PI * 14000 * t) * 0.2;
+      
+      // わずかなピッチベンド効果
+      const bend = Math.sin(2 * Math.PI * 7000 * t * (1 + Math.sin(t * 50) * 0.02)) * 0.1;
+      
+      data[i] = (filtered1 + filtered2 + sizzle + bend) * envelope * 0.2;
     }
 
     return buffer;
@@ -186,16 +242,38 @@ export class DrumMachine {
 
   private async createCrash(): Promise<AudioBuffer> {
     const sampleRate = this.audioContext.sampleRate;
-    const duration = 1.5;
+    const duration = 2.0;
     const buffer = this.audioContext.createBuffer(1, sampleRate * duration, sampleRate);
     const data = buffer.getChannelData(0);
 
     for (let i = 0; i < data.length; i++) {
       const t = i / sampleRate;
-      const envelope = Math.exp(-t * 2);
-      const noise = (Math.random() * 2 - 1);
-      const shimmer = Math.sin(2 * Math.PI * 5000 * t) * 0.3;
-      data[i] = (noise + shimmer) * envelope * 0.2;
+      
+      // クラッシュシンバル特有の長いサステイン
+      const attack = t < 0.01 ? t / 0.01 : 1;
+      const decay = Math.exp(-t * 1.5);
+      const envelope = attack * decay;
+      
+      // 複数のノイズレイヤーで豊かなシンバル音
+      const noise1 = (Math.random() * 2 - 1);
+      const noise2 = (Math.random() * 2 - 1);
+      const noise3 = (Math.random() * 2 - 1);
+      
+      // 異なる周波数帯域のシマー効果
+      const shimmer1 = Math.sin(2 * Math.PI * 3000 * t * (1 + noise1 * 0.05)) * 0.3;
+      const shimmer2 = Math.sin(2 * Math.PI * 6000 * t * (1 + noise2 * 0.03)) * 0.25;
+      const shimmer3 = Math.sin(2 * Math.PI * 9000 * t * (1 + noise3 * 0.02)) * 0.2;
+      
+      // 高周波のキラキラ感
+      const sparkle = noise1 * Math.sin(2 * Math.PI * 12000 * t) * 0.15;
+      
+      // 低周波の響き
+      const resonance = Math.sin(2 * Math.PI * 800 * t) * Math.exp(-t * 5) * 0.1;
+      
+      // わずかなフランジング効果
+      const delay = Math.sin(2 * Math.PI * 5000 * (t - 0.002)) * 0.05;
+      
+      data[i] = (shimmer1 + shimmer2 + shimmer3 + sparkle + resonance + delay + noise1 * 0.1) * envelope * 0.25;
     }
 
     return buffer;

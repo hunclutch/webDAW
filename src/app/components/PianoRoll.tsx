@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Note } from '../types/audio';
+import { Note, DrumPattern } from '../types/audio';
+import BasslineGenerator from './BasslineGenerator';
 
 interface PianoRollProps {
   notes: Note[];
@@ -11,7 +12,8 @@ interface PianoRollProps {
   playheadPosition: number;
   measures?: number;
   onMeasuresChange?: (measures: number) => void;
-  trackType?: 'synth' | 'drum' | 'audio';
+  trackType?: 'synth' | 'drum' | 'bass' | 'audio';
+  drumPattern?: DrumPattern;
   onClose?: () => void;
   onPlay?: () => void;
   onStop?: () => void;
@@ -44,6 +46,7 @@ export default function PianoRoll({
   measures = INITIAL_MEASURES,
   onMeasuresChange,
   trackType = 'synth',
+  drumPattern,
   onClose,
   onPlay,
   onStop,
@@ -64,7 +67,45 @@ export default function PianoRoll({
   const [hasMoved, setHasMoved] = useState(false);
   const [lastPreviewTime, setLastPreviewTime] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(2); // デフォルトズームレベルインデックス
+  const [showBassGenerator, setShowBassGenerator] = useState(false);
   const gridWidth = measures * 16; // 小節数 × 16分音符（1小節 = 16ステップ）
+
+  // ドラムパターンをノートに変換
+  const drumPatternToNotes = useCallback((pattern: DrumPattern): Note[] => {
+    const notes: Note[] = [];
+    const drumMapping = {
+      kick: { note: 'C', octave: 4 },
+      snare: { note: 'D', octave: 4 },
+      hihat: { note: 'F#', octave: 4 },
+      openhat: { note: 'A#', octave: 4 },
+      crash: { note: 'C', octave: 5 },
+    };
+
+    // 全小節にわたってパターンを繰り返し
+    for (let measure = 0; measure < measures; measure++) {
+      pattern.steps.forEach((step, stepIndex) => {
+        Object.entries(drumMapping).forEach(([drumType, noteInfo]) => {
+          if ((step as any)[drumType]) {
+            notes.push({
+              id: `drum-${drumType}-${measure}-${stepIndex}-${Date.now()}`,
+              note: noteInfo.note,
+              octave: noteInfo.octave,
+              start: measure * 16 + stepIndex, // 16ステップ/小節
+              duration: 1,
+              velocity: step.velocity,
+            });
+          }
+        });
+      });
+    }
+
+    return notes;
+  }, [measures]);
+
+  // 表示用のノート配列（実際のnotesかドラムパターンから変換）
+  const displayNotes = trackType === 'drum' && drumPattern && notes.length === 0 
+    ? drumPatternToNotes(drumPattern)
+    : notes;
   const CELL_WIDTH = BASE_CELL_WIDTH * ZOOM_LEVELS[zoomLevel]; // ズームに応じたセル幅
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -498,6 +539,21 @@ export default function PianoRoll({
             </button>
           </div>
           
+          {/* Bass Generator Button (for bass tracks only) */}
+          {trackType === 'bass' && (
+            <button
+              onClick={() => setShowBassGenerator(!showBassGenerator)}
+              className={`px-3 py-1 text-sm rounded transition-colors ${
+                showBassGenerator
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-gray-600 hover:bg-gray-500 text-white'
+              }`}
+              title="Bass Generator"
+            >
+              🎸 Generator
+            </button>
+          )}
+          
           {/* Spacer to push close button to the right */}
           <div className="flex-1"></div>
           
@@ -718,7 +774,7 @@ export default function PianoRoll({
             })}
             
             {/* Notes */}
-            {notes.map(note => {
+            {displayNotes.map(note => {
               const x = stepToPosition(note.start);
               const y = noteToPosition(note.note, note.octave);
               const width = CELL_WIDTH * note.duration - 3;
@@ -815,6 +871,16 @@ export default function PianoRoll({
         </div>
         </div>
       </div>
+
+      {/* Bass Generator Panel */}
+      {trackType === 'bass' && showBassGenerator && (
+        <div className="border-t border-gray-700 p-4 flex-shrink-0">
+          <BasslineGenerator
+            onGenerateBaseline={onNotesChange}
+            measures={measures}
+          />
+        </div>
+      )}
     </div>
   );
 }
