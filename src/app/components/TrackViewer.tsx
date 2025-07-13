@@ -14,8 +14,8 @@ interface TrackViewerProps {
 
 // const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; // 未使用
 // const OCTAVES = [7, 6, 5, 4, 3, 2, 1]; // 未使用
-const INITIAL_MEASURES = 60; // 60小節デフォルト
-const STEPS_PER_MEASURE = 16; // 16分音符単位
+const INITIAL_MEASURES = 20; // 20小節デフォルト
+const STEPS_PER_MEASURE = 4; // 4分音符単位（4/4拍子で4分音符4つ = 1小節）
 const CELL_WIDTH = 12; // Smaller cells for overview
 // const CELL_HEIGHT = 10; // 未使用
 const TRACK_HEIGHT = 60; // Height per track lane
@@ -66,13 +66,14 @@ export default function TrackViewer({
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4 h-full">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-gray-800 rounded-lg h-full flex flex-col" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+      {/* Fixed Header */}
+      <div className="flex items-center justify-between p-4 pb-2 border-b border-gray-700 flex-shrink-0">
         <h3 className="text-white font-medium">Track Overview</h3>
         <div className="flex items-center space-x-4">
           {onMeasuresChange && (
             <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-400">Measures:</label>
+              <label className="text-sm text-gray-400 whitespace-nowrap">Measures:</label>
               <input
                 type="number"
                 min="1"
@@ -83,13 +84,15 @@ export default function TrackViewer({
               />
             </div>
           )}
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-gray-400 whitespace-nowrap">
             {synthTracks.length} synth tracks
           </div>
         </div>
       </div>
 
-      <div className="h-96 flex flex-col">
+      {/* Scrollable Content */}
+      <div className="flex-1 p-4 pt-2 overflow-hidden">
+        <div className="h-96 flex flex-col">
         {/* Track Labels */}
         <div className="flex">
           <div className="w-40 flex flex-col">
@@ -143,12 +146,12 @@ export default function TrackViewer({
                 height={synthTracks.length * TRACK_HEIGHT}
               >
                 {/* Vertical lines (measures) */}
-                {Array.from({ length: Math.floor(gridWidth / 16) + 1 }, (_, i) => (
+                {Array.from({ length: Math.floor(gridWidth / 4) + 1 }, (_, i) => (
                   <line
                     key={`measure-${i}`}
-                    x1={i * 16 * CELL_WIDTH}
+                    x1={i * 4 * CELL_WIDTH}
                     y1={0}
-                    x2={i * 16 * CELL_WIDTH}
+                    x2={i * 4 * CELL_WIDTH}
                     y2={synthTracks.length * TRACK_HEIGHT}
                     stroke="#4B5563"
                     strokeWidth={2}
@@ -156,12 +159,12 @@ export default function TrackViewer({
                 ))}
                 
                 {/* Beat lines */}
-                {Array.from({ length: Math.floor(gridWidth / 4) + 1 }, (_, i) => (
+                {Array.from({ length: gridWidth + 1 }, (_, i) => (
                   <line
                     key={`beat-${i}`}
-                    x1={i * 4 * CELL_WIDTH}
+                    x1={i * CELL_WIDTH}
                     y1={0}
-                    x2={i * 4 * CELL_WIDTH}
+                    x2={i * CELL_WIDTH}
                     y2={synthTracks.length * TRACK_HEIGHT}
                     stroke="#374151"
                     strokeWidth={1}
@@ -240,11 +243,12 @@ export default function TrackViewer({
             </div>
           </div>
         </div>
+        </div>
       </div>
 
       {/* Instructions */}
       {synthTracks.length === 0 && (
-        <div className="mt-4 text-center text-gray-400">
+        <div className="p-4 pt-2 text-center text-gray-400">
           <p>Create synth tracks to see MIDI data visualization</p>
         </div>
       )}

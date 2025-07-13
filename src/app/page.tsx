@@ -59,7 +59,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [measures, setMeasures] = useState(60); // デフォルト60小節
+  const [measures, setMeasures] = useState(20); // デフォルト20小節
 
   // 小節数が変更されたときにaudioEngineに反映
   useEffect(() => {
@@ -798,7 +798,8 @@ export default function Home() {
               </div>
 
               {/* Editor Content */}
-              <div className="flex-1 p-6 overflow-auto">
+              <div className="flex-1 overflow-hidden" style={{ minWidth: '0' }}>
+                <div className="h-full p-6">
                 {!selectedTrack ? (
                   // Show track arrangement or piano roll overview
                   showPianoRoll ? (
@@ -863,6 +864,7 @@ export default function Home() {
                     )}
                   </>
                 )}
+                </div>
               </div>
             </>
           )}

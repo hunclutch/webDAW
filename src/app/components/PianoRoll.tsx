@@ -16,8 +16,8 @@ interface PianoRollProps {
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const OCTAVES = [1, 2, 3, 4, 5, 6, 7]; // Low to high for visual layout
-const INITIAL_MEASURES = 60; // 60小節デフォルト
-const STEPS_PER_MEASURE = 16; // 16分音符単位（4/4拍子）
+const INITIAL_MEASURES = 20; // 20小節デフォルト
+const STEPS_PER_MEASURE = 4; // 4分音符単位（4/4拍子で4分音符4つ = 1小節）
 const CELL_WIDTH = 24;
 const CELL_HEIGHT = 20;
 const DRAG_THRESHOLD = 5; // ドラッグと判定するピクセル距離
@@ -86,12 +86,28 @@ export default function PianoRoll({
     // Canvasサイズを強制的に更新
     if (canvasRef.current) {
       const canvas = canvasRef.current;
-      canvas.width = gridWidth * CELL_WIDTH;
-      canvas.height = NOTES.length * OCTAVES.length * CELL_HEIGHT;
+      const newWidth = gridWidth * CELL_WIDTH;
+      const newHeight = NOTES.length * OCTAVES.length * CELL_HEIGHT;
       
-      // Canvas要素のDOM属性も更新
-      canvas.setAttribute('width', (gridWidth * CELL_WIDTH).toString());
-      canvas.setAttribute('height', (NOTES.length * OCTAVES.length * CELL_HEIGHT).toString());
+      // Canvas内部解像度を設定
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      
+      // CSS表示サイズも更新
+      canvas.style.width = `${newWidth}px`;
+      canvas.style.height = `${newHeight}px`;
+      
+      console.log('Canvas resized to:', { width: newWidth, height: newHeight });
+    }
+    
+    // スクロールコンテナが正しくスクロール可能になるよう確保
+    if (gridScrollRef.current) {
+      const scrollContainer = gridScrollRef.current;
+      const newWidth = gridWidth * CELL_WIDTH;
+      console.log('Scroll container should handle width:', newWidth);
+      
+      // 強制的にスクロール領域を更新
+      scrollContainer.scrollLeft = scrollContainer.scrollLeft; // 現在位置を維持
     }
   }, [measures, gridWidth]);
 
@@ -373,13 +389,14 @@ export default function PianoRoll({
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-gray-800 rounded-lg flex flex-col" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+      {/* Fixed Header */}
+      <div className="flex items-center justify-between p-4 pb-2 border-b border-gray-700 flex-shrink-0">
         <h3 className="text-white font-medium">Piano Roll</h3>
         <div className="flex items-center space-x-2">
           {onMeasuresChange && (
             <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-400">Measures:</label>
+              <label className="text-sm text-gray-400 whitespace-nowrap">Measures:</label>
               <input
                 type="number"
                 min="1"
@@ -392,22 +409,23 @@ export default function PianoRoll({
           )}
           <button
             onClick={() => onNotesChange([])}
-            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded"
+            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded whitespace-nowrap"
           >
             Clear All
           </button>
         </div>
       </div>
 
-      <div className="flex" style={{ height: '400px' }}>
+      {/* Scrollable Content */}
+      <div className="p-4 pt-2">
+        <div className="flex border border-gray-600 rounded" style={{ height: '400px', width: '100%' }}>
         {/* Piano Keys */}
         <div 
-          className="flex flex-col overflow-y-auto bg-gray-700" 
+          className="flex flex-col overflow-y-auto bg-gray-700 flex-shrink-0" 
           ref={scrollContainerRef}
           onScroll={handleScroll}
           style={{ 
-            minWidth: '64px',
-            width: '64px'
+            width: '80px'
           }}
         >
           {[...OCTAVES].reverse().map(octave =>
@@ -421,7 +439,7 @@ export default function PianoRoll({
                 <button
                   key={`${note}${octave}`}
                   onClick={() => handleKeyClick(note, octave)}
-                  className={`w-16 border border-gray-600 text-xs font-mono flex items-center justify-center transition-colors flex-shrink-0 ${
+                  className={`w-20 border border-gray-600 text-xs font-mono flex items-center justify-center transition-colors flex-shrink-0 ${
                     drumName
                       ? 'text-white border-gray-500' // ドラムキーの場合
                       : isC4
@@ -446,16 +464,16 @@ export default function PianoRoll({
 
         {/* Grid */}
         <div 
-          className="relative overflow-auto flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
+          className="relative flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
           ref={gridScrollRef}
           onScroll={handleScroll}
           style={{ 
-            minWidth: '0',
-            minHeight: '0'
+            overflow: 'auto',
+            height: '400px'
           }}
         >
           <div 
-            key={`grid-${measures}`} // Key変更で強制リレンダリング
+            key={`grid-container-${measures}-${gridWidth}`}
             style={{ 
               width: `${gridWidth * CELL_WIDTH}px`, 
               height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`,
@@ -463,7 +481,7 @@ export default function PianoRoll({
             }}
           >
             <canvas
-              key={`canvas-${measures}`} // Key変更で強制リレンダリング
+              key={`canvas-${measures}-${gridWidth}`} // より詳細なキーで確実にリレンダリング
               ref={canvasRef}
               width={gridWidth * CELL_WIDTH}
               height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
@@ -485,10 +503,14 @@ export default function PianoRoll({
             
             {/* Grid lines */}
             <svg
-              key={`svg-${measures}`} // Key変更で強制リレンダリング
+              key={`svg-${measures}-${gridWidth}`} // より詳細なキーで確実にリレンダリング
               className="absolute top-0 left-0 pointer-events-none"
               width={gridWidth * CELL_WIDTH}
               height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
+              style={{
+                width: `${gridWidth * CELL_WIDTH}px`,
+                height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`
+              }}
             >
             {/* Vertical lines */}
             {Array.from({ length: gridWidth + 1 }, (_, i) => (
@@ -581,6 +603,7 @@ export default function PianoRoll({
             )}
             </svg>
           </div>
+        </div>
         </div>
       </div>
     </div>

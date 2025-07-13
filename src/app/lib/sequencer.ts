@@ -125,9 +125,9 @@ export class Sequencer {
   }
 
   private scheduleNotesForTrack(track: Track, currentTime: number, endTime: number, audioTime: number) {
-    // ノートのstart/durationは16分音符ステップ単位で保存されている
-    const secondsPer16thNote = (60 / this.bpm) / 4; // 16分音符の長さ
-    const stepsPerSecond = 1 / secondsPer16thNote;
+    // ノートのstart/durationは4分音符ステップ単位で保存されている
+    const secondsPerQuarterNote = 60 / this.bpm; // 4分音符の長さ
+    const stepsPerSecond = 1 / secondsPerQuarterNote;
     const currentStep = currentTime * stepsPerSecond;
     const endStep = endTime * stepsPerSecond;
     
@@ -136,8 +136,8 @@ export class Sequencer {
       
       // Check if note should be playing in the current time window
       if (noteStartStep >= currentStep && noteStartStep < endStep) {
-        const noteStartTime = audioTime + (noteStartStep - currentStep) * secondsPer16thNote;
-        const noteDuration = note.duration * secondsPer16thNote;
+        const noteStartTime = audioTime + (noteStartStep - currentStep) * secondsPerQuarterNote;
+        const noteDuration = note.duration * secondsPerQuarterNote;
         
         // 重複スケジューリングを防ぐためのユニークキー
         const noteKey = `${track.id}-${note.id}-${noteStartStep}`;
@@ -179,7 +179,7 @@ export class Sequencer {
   private scheduleDrumPatternForTrack(track: Track, currentTime: number, endTime: number, audioTime: number) {
     if (!track.drumPattern) return;
     
-    const secondsPer16thNote = (60 / this.bpm) / 4; // 16th notes
+    const secondsPer16thNote = (60 / this.bpm) / 4; // 16th notes - ドラムパターンは16分音符のまま保持
     const stepsPerSecond = 1 / secondsPer16thNote;
     const patternLength = track.drumPattern.length;
     
@@ -201,11 +201,11 @@ export class Sequencer {
   private startPlayheadUpdate() {
     this.intervalId = window.setInterval(() => {
       if (this.isPlaying) {
-        // playheadPositionは16分音符ステップ単位で管理
-        const secondsPer16thNote = (60 / this.bpm) / 4;
-        const stepsPerSecond = 1 / secondsPer16thNote;
+        // playheadPositionは4分音符ステップ単位で管理
+        const secondsPerQuarterNote = 60 / this.bpm;
+        const stepsPerSecond = 1 / secondsPerQuarterNote;
         const totalSteps = this.getCurrentTime() * stepsPerSecond;
-        const maxSteps = this.maxMeasures * 16; // 各小節16ステップ（16分音符）
+        const maxSteps = this.maxMeasures * 4; // 各小節4ステップ（4分音符）
         
         // 最大小節数に達したら停止
         if (totalSteps >= maxSteps) {

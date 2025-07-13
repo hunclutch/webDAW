@@ -15,7 +15,7 @@ interface InlineMidiViewerProps {
   onDeleteTrack?: (trackId: string) => void;
 }
 
-const STEPS_PER_MEASURE = 16; // 16分音符単位
+const STEPS_PER_MEASURE = 4; // 4分音符単位（4/4拍子で4分音符4つ = 1小節）
 const CELL_WIDTH = 8; // より小さなセル
 const TRACK_HEIGHT = 60; // サイドトラックと同じ高さ
 
@@ -67,20 +67,21 @@ export default function InlineMidiViewer({
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-gray-800 rounded-lg flex flex-col" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+      {/* Fixed Header */}
+      <div className="flex items-center justify-between p-4 pb-2 border-b border-gray-700 flex-shrink-0">
         <h3 className="text-white font-medium">Track Arrangement</h3>
         <div className="flex items-center space-x-4">
           {onSwitchToDetailView && (
             <button
               onClick={onSwitchToDetailView}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
+              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded whitespace-nowrap"
             >
               Piano Roll View
             </button>
           )}
           <div className="flex items-center space-x-2">
-            <label className="text-sm text-gray-400">Measures:</label>
+            <label className="text-sm text-gray-400 whitespace-nowrap">Measures:</label>
             <input
               type="number"
               min="1"
@@ -90,11 +91,14 @@ export default function InlineMidiViewer({
               className="w-16 px-2 py-1 bg-gray-700 text-white text-sm rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
             />
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-gray-400 whitespace-nowrap">
             {synthTracks.length} tracks
           </div>
         </div>
       </div>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 p-4 pt-2">
 
       <div className="flex">
         {/* Track Labels - サイドトラックと同じスタイル */}
@@ -188,10 +192,10 @@ export default function InlineMidiViewer({
               ))}
               
               {/* Beat lines */}
-              {Array.from({ length: Math.floor(gridWidth / 4) + 1 }, (_, i) => (
+              {Array.from({ length: gridWidth + 1 }, (_, i) => (
                 <line
                   key={`beat-${i}`}
-                  x1={i * 4 * CELL_WIDTH}
+                  x1={i * CELL_WIDTH}
                   y1={0}
                   x2={i * 4 * CELL_WIDTH}
                   y2={synthTracks.length * TRACK_HEIGHT}
@@ -275,10 +279,11 @@ export default function InlineMidiViewer({
           </div>
         </div>
       </div>
+      </div>
 
       {/* Instructions */}
       {synthTracks.length === 0 && (
-        <div className="mt-4 text-center text-gray-400">
+        <div className="p-4 pt-2 text-center text-gray-400">
           <p>Create synth tracks to see MIDI arrangement</p>
         </div>
       )}
