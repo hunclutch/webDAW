@@ -16,8 +16,10 @@ import { AudioExporter } from './lib/audioExporter';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import DrumPads from './components/DrumPads';
 import EffectRack from './components/EffectRack';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 
-export default function Home() {
+function HomeContent() {
+  const { theme } = useTheme();
   const { initializeAudioContext, getMasterGain } = useAudioContext();
   const [audioEngine, setAudioEngine] = useState<AudioEngine | null>(null);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
@@ -418,9 +420,9 @@ export default function Home() {
   const playheadPosition = audioEngine ? audioEngine.getPlayheadPosition() : 0;
 
   return (
-    <div className="h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
+      <div className={`h-screen flex flex-col overflow-hidden ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-slate-50 text-slate-900'}`}>
       {/* Top Bar - Logic Pro Style */}
-      <div className="bg-gray-800 border-b border-gray-700 px-4 py-2">
+      <div className={`border-b px-4 py-2 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-slate-200 border-slate-300'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div>
@@ -935,6 +937,14 @@ export default function Home() {
         tracks={dawState.tracks || []}
         measures={measures}
       />
-    </div>
+      </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <ThemeProvider>
+      <HomeContent />
+    </ThemeProvider>
   );
 }

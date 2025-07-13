@@ -24,3 +24,70 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* テーマ切り替え用のクラス */
+body.dark {
+  background-color: #111827;
+  color: #ffffff;
+}
+
+body.light {
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+/* テーマ対応のユーティリティクラス */
+.dark .theme-bg-primary {
+  background-color: #111827;
+}
+
+.light .theme-bg-primary {
+  background-color: #f8fafc;
+}
+
+.dark .theme-bg-secondary {
+  background-color: #1f2937;
+}
+
+.light .theme-bg-secondary {
+  background-color: #e2e8f0;
+}
+
+.dark .theme-bg-tertiary {
+  background-color: #374151;
+}
+
+.light .theme-bg-tertiary {
+  background-color: #cbd5e1;
+}
+
+.dark .theme-text-primary {
+  color: #ffffff;
+}
+
+.light .theme-text-primary {
+  color: #1e293b;
+}
+
+.dark .theme-text-secondary {
+  color: #d1d5db;
+}
+
+.light .theme-text-secondary {
+  color: #64748b;
+}
+
+.dark .theme-border {
+  border-color: #374151;
+}
+
+.light .theme-border {
+  border-color: #cbd5e1;
+}
+
+/* NextJS開発者ツールボタンを非表示 */
+[data-nextjs-toast="true"],
+[data-nextjs-dev-tools-button="true"],
+[data-next-badge-root="true"] {
+  display: none !important;
+}
