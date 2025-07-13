@@ -128,16 +128,6 @@ export default function PianoRoll({
       
       console.log('Canvas resized to:', { width: newWidth, height: newHeight });
     }
-    
-    // スクロールコンテナが正しくスクロール可能になるよう確保
-    if (gridScrollRef.current) {
-      const scrollContainer = gridScrollRef.current;
-      const newWidth = gridWidth * CELL_WIDTH;
-      console.log('Scroll container should handle width:', newWidth);
-      
-      // 強制的にスクロール領域を更新
-      scrollContainer.scrollLeft = scrollContainer.scrollLeft; // 現在位置を維持
-    }
   }, [measures, gridWidth, CELL_WIDTH, zoomLevel]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -412,10 +402,14 @@ export default function PianoRoll({
 
   return (
     <div className="bg-gray-800 rounded-lg flex flex-col" style={{ 
-      width: '100%',
-      maxWidth: '100%',
-      height: '600px',
-      minHeight: '400px'
+      position: 'fixed',
+      top: '20px',
+      left: '20px',
+      right: '20px',
+      bottom: '20px',
+      width: 'calc(100vw - 40px)',
+      height: 'calc(100vh - 40px)',
+      zIndex: 1000
     }}>
       {/* Fixed Header */}
       <div className="flex items-center p-4 pb-2 border-b border-gray-700 flex-shrink-0">
@@ -472,10 +466,10 @@ export default function PianoRoll({
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 p-4 pt-2 overflow-hidden">
-        <div className="flex border border-gray-600 rounded h-full">
+      <div className="flex-1 p-4 pt-2 overflow-hidden" style={{ minHeight: 0 }}>
+        <div className="flex border border-gray-600 rounded h-full" style={{ minWidth: 0, minHeight: 0 }}>
         {/* Piano Keys */}
-        <div className="flex flex-col bg-gray-700 flex-shrink-0" style={{ width: '80px' }}>
+        <div className="flex flex-col bg-gray-700 flex-shrink-0" style={{ width: '80px', minHeight: 0 }}>
           {/* Spacer to align with ruler */}
           <div style={{ height: '30px', borderBottom: '1px solid #4B5563' }}></div>
           
@@ -522,17 +516,22 @@ export default function PianoRoll({
         </div>
 
         {/* Grid */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col" style={{ minWidth: 0 }}>
           {/* Time Ruler */}
           <div 
             ref={rulerRef}
-            className="bg-gray-700 border-b border-gray-600 overflow-x-hidden"
-            style={{ height: '30px' }}
+            className="bg-gray-700 border-b border-gray-600"
+            style={{ 
+              height: '30px',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              width: '100%'
+            }}
             onScroll={handleScroll}
           >
             <div 
               style={{ 
-                width: `${gridWidth * CELL_WIDTH}px`, 
+                width: `${gridWidth * CELL_WIDTH}px`,
                 height: '30px',
                 position: 'relative'
               }}
@@ -588,13 +587,14 @@ export default function PianoRoll({
             onScroll={handleScroll}
             style={{ 
               overflow: 'auto',
-              width: '100%'
+              width: '100%',
+              minHeight: 0
             }}
           >
           <div 
             key={`grid-container-${measures}-${gridWidth}-${zoomLevel}`}
             style={{ 
-              width: `${gridWidth * CELL_WIDTH}px`, 
+              width: `${gridWidth * CELL_WIDTH}px`,
               height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`,
               position: 'relative',
               backgroundColor: '#111827'
