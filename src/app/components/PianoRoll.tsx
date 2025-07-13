@@ -65,23 +65,48 @@ export default function PianoRoll({
   const gridScrollRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
 
+  const positionToNote = useCallback((y: number) => {
+    const totalNotes = NOTES.length * OCTAVES.length;
+    const indexFromTop = Math.floor(y / CELL_HEIGHT);
+    if (indexFromTop < 0 || indexFromTop >= totalNotes) return null;
+
+    const indexFromBottom = totalNotes - 1 - indexFromTop;
+    const octaveIndex = Math.floor(indexFromBottom / NOTES.length);
+    const noteIndex = indexFromBottom % NOTES.length;
+
+    return {
+      note: NOTES[noteIndex],
+      octave: OCTAVES[octaveIndex],
+    };
+  }, []);
+
+  const noteToPosition = useCallback((note: string, octave: number) => {
+    const octaveIndex = OCTAVES.indexOf(octave);
+    const noteIndex = NOTES.indexOf(note);
+    if (octaveIndex === -1 || noteIndex === -1) return -1;
+
+    const totalNotes = NOTES.length * OCTAVES.length;
+    const indexFromBottom = octaveIndex * NOTES.length + noteIndex;
+    const indexFromTop = totalNotes - 1 - indexFromBottom;
+    
+    return indexFromTop * CELL_HEIGHT;
+  }, []);
+
   // C4を中央に配置とスクロール同期
   useEffect(() => {
     if (scrollContainerRef.current && gridScrollRef.current) {
-      // C4の位置を計算 (オクターブ4のCは上から3番目のオクターブの最初の音)
-      const octaveIndex = OCTAVES.indexOf(4);
-      const noteIndex = NOTES.indexOf('C');
-      const c4Position = ((OCTAVES.length - 1 - octaveIndex) * NOTES.length + (NOTES.length - 1 - noteIndex)) * CELL_HEIGHT;
-      
+      const c4Position = noteToPosition('C', 4);
+      if (c4Position === -1) return;
+
       // コンテナの高さの半分を取得
       const containerHeight = scrollContainerRef.current.clientHeight;
-      const scrollTop = c4Position - containerHeight / 2;
+      const scrollTop = c4Position - containerHeight / 2 + CELL_HEIGHT / 2;
       
       const finalScrollTop = Math.max(0, scrollTop);
       scrollContainerRef.current.scrollTop = finalScrollTop;
       gridScrollRef.current.scrollTop = finalScrollTop;
     }
-  }, []);
+  }, [noteToPosition]);
   
   // 小節数やズームレベルが変更されたときのcanvas再描画
   useEffect(() => {
@@ -119,15 +144,17 @@ export default function PianoRoll({
     const scrollTop = e.currentTarget.scrollTop;
     const scrollLeft = e.currentTarget.scrollLeft;
     
-    if (scrollContainerRef.current && gridScrollRef.current) {
+    if (scrollContainerRef.current && gridScrollRef.current && rulerRef.current) {
       if (e.currentTarget === scrollContainerRef.current) {
+        // ピアノキーのスクロール → グリッドの縦スクロール同期
         gridScrollRef.current.scrollTop = scrollTop;
       } else if (e.currentTarget === gridScrollRef.current) {
+        // グリッドのスクロール → ピアノキーの縦スクロール同期 + ルーラーの横スクロール同期
         scrollContainerRef.current.scrollTop = scrollTop;
-        // ルーラーも水平スクロールと同期
-        if (rulerRef.current) {
-          rulerRef.current.scrollLeft = scrollLeft;
-        }
+        rulerRef.current.scrollLeft = scrollLeft;
+      } else if (e.currentTarget === rulerRef.current) {
+        // ルーラーのスクロール → グリッドの横スクロール同期
+        gridScrollRef.current.scrollLeft = scrollLeft;
       }
     }
   }, []);
@@ -138,29 +165,7 @@ export default function PianoRoll({
     return Math.round((x / CELL_WIDTH) * 4) / 4; // 0.25ステップ単位で丸める
   };
 
-  const positionToNote = (y: number) => {
-    const noteIndex = Math.floor(y / CELL_HEIGHT);
-    const totalNotes = NOTES.length * OCTAVES.length;
-    if (noteIndex < 0 || noteIndex >= totalNotes) return null;
-    
-    const octaveIndex = Math.floor(noteIndex / NOTES.length);
-    const noteInOctave = noteIndex % NOTES.length;
-    
-    return {
-      note: NOTES[NOTES.length - 1 - noteInOctave],
-      octave: OCTAVES[OCTAVES.length - 1 - octaveIndex],
-    };
-  };
-
   const stepToPosition = (step: number) => step * CELL_WIDTH;
-  
-  const noteToPosition = (note: string, octave: number) => {
-    const octaveIndex = OCTAVES.indexOf(octave);
-    const noteIndex = NOTES.indexOf(note);
-    if (octaveIndex === -1 || noteIndex === -1) return -1;
-    
-    return ((OCTAVES.length - 1 - octaveIndex) * NOTES.length + (NOTES.length - 1 - noteIndex)) * CELL_HEIGHT;
-  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -181,7 +186,7 @@ export default function PianoRoll({
 
     if (clickedNote) {
       // 既存ノートをクリックした場合
-      const edge = isNearNoteEdge(clickedNote, step);
+      const edge = isNearNoteEdge(clickedNote, x);
       if (edge) {
         // ノートの端をクリック - リサイズモード準備
         setResizeTarget(clickedNote);
@@ -354,8 +359,11 @@ export default function PianoRoll({
 
     const clickedNote = getNoteAtPosition(step, noteData);
     if (clickedNote) {
-      // ダブルクリックでノートを削除
-      onNotesChange(notes.filter(n => n.id !== clickedNote.id));
+      // リサイズハンドル以外の場所でダブルクリックした場合のみ削除
+      const edge = isNearNoteEdge(clickedNote, x);
+      if (!edge) {
+        onNotesChange(notes.filter(n => n.id !== clickedNote.id));
+      }
     }
   };
 
@@ -376,15 +384,18 @@ export default function PianoRoll({
   };
 
   // ノートの端をクリックしているかチェック（リサイズハンドル）
-  const isNearNoteEdge = (note: Note, clickStep: number): 'start' | 'end' | null => {
-    const noteStartStep = note.start;
-    const noteEndStep = note.start + note.duration - 1; // 1ステップ手前が実際の終端
+  const isNearNoteEdge = (note: Note, clickX: number): 'start' | 'end' | null => {
+    const noteStartPixel = stepToPosition(note.start);
+    const noteEndPixel = stepToPosition(note.start + note.duration);
+    const RESIZE_HANDLE_WIDTH = 8; // リサイズハンドルの幅（ピクセル）
     
-    if (Math.abs(clickStep - noteStartStep) <= 0.5) {
-      return 'start'; // 左端
+    // 左端のリサイズハンドル領域
+    if (clickX >= noteStartPixel && clickX <= noteStartPixel + RESIZE_HANDLE_WIDTH) {
+      return 'start';
     }
-    if (Math.abs(clickStep - noteEndStep) <= 0.5) {
-      return 'end'; // 右端
+    // 右端のリサイズハンドル領域  
+    if (clickX >= noteEndPixel - RESIZE_HANDLE_WIDTH && clickX <= noteEndPixel) {
+      return 'end';
     }
     return null; // 中央
   };
@@ -400,11 +411,16 @@ export default function PianoRoll({
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg flex flex-col" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+    <div className="bg-gray-800 rounded-lg flex flex-col" style={{ 
+      width: '100%',
+      maxWidth: '100%',
+      height: '600px',
+      minHeight: '400px'
+    }}>
       {/* Fixed Header */}
-      <div className="flex items-center justify-between p-4 pb-2 border-b border-gray-700 flex-shrink-0">
-        <h3 className="text-white font-medium">Piano Roll</h3>
-        <div className="flex items-center space-x-2">
+      <div className="flex items-center p-4 pb-2 border-b border-gray-700 flex-shrink-0">
+        <h3 className="text-white font-medium mr-6">Piano Roll</h3>
+        <div className="flex items-center space-x-4 flex-1">
           {onMeasuresChange && (
             <div className="flex items-center space-x-2">
               <label className="text-sm text-gray-400 whitespace-nowrap">Measures:</label>
@@ -443,6 +459,9 @@ export default function PianoRoll({
             </button>
           </div>
           
+          {/* Spacer to push Clear All to the right */}
+          <div className="flex-1"></div>
+          
           <button
             onClick={() => onNotesChange([])}
             className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded whitespace-nowrap"
@@ -453,17 +472,18 @@ export default function PianoRoll({
       </div>
 
       {/* Scrollable Content */}
-      <div className="p-4 pt-2">
-        <div className="flex border border-gray-600 rounded" style={{ height: '400px', width: '100%' }}>
+      <div className="flex-1 p-4 pt-2 overflow-hidden">
+        <div className="flex border border-gray-600 rounded h-full">
         {/* Piano Keys */}
-        <div 
-          className="flex flex-col overflow-y-auto bg-gray-700 flex-shrink-0" 
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          style={{ 
-            width: '80px'
-          }}
-        >
+        <div className="flex flex-col bg-gray-700 flex-shrink-0" style={{ width: '80px' }}>
+          {/* Spacer to align with ruler */}
+          <div style={{ height: '30px', borderBottom: '1px solid #4B5563' }}></div>
+          
+          <div 
+            className="overflow-y-hidden flex-1" 
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+          >
           {[...OCTAVES].reverse().map(octave =>
             [...NOTES].reverse().map(note => {
               const isBlack = isBlackKey(note);
@@ -475,7 +495,7 @@ export default function PianoRoll({
                 <button
                   key={`${note}${octave}`}
                   onClick={() => handleKeyClick(note, octave)}
-                  className={`w-20 border border-gray-600 text-xs font-mono flex items-center justify-center transition-colors flex-shrink-0 ${
+                  className={`border-r border-gray-600 text-xs font-mono flex items-center justify-center transition-colors flex-shrink-0 ${
                     drumName
                       ? 'text-white border-gray-500' // ドラムキーの場合
                       : isC4
@@ -485,10 +505,12 @@ export default function PianoRoll({
                       : 'bg-white text-black hover:bg-gray-100'
                   }`}
                   style={{ 
+                    width: '80px',
                     height: `${CELL_HEIGHT}px`,
                     minHeight: `${CELL_HEIGHT}px`,
                     maxHeight: `${CELL_HEIGHT}px`,
-                    backgroundColor: drumColor || undefined
+                    backgroundColor: drumColor || undefined,
+                    boxSizing: 'border-box'
                   }}
                 >
                   {drumName || `${note}${octave}`}
@@ -496,6 +518,7 @@ export default function PianoRoll({
               );
             })
           )}
+          </div>
         </div>
 
         {/* Grid */}
@@ -503,13 +526,9 @@ export default function PianoRoll({
           {/* Time Ruler */}
           <div 
             ref={rulerRef}
-            className="bg-gray-700 border-b border-gray-600 overflow-x-auto scrollbar-none"
+            className="bg-gray-700 border-b border-gray-600 overflow-x-hidden"
             style={{ height: '30px' }}
-            onScroll={(e) => {
-              if (gridScrollRef.current) {
-                gridScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
-              }
-            }}
+            onScroll={handleScroll}
           >
             <div 
               style={{ 
@@ -564,12 +583,12 @@ export default function PianoRoll({
           
           {/* Piano Roll Grid */}
           <div 
-            className="relative flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
+            className="relative flex-1" 
             ref={gridScrollRef}
             onScroll={handleScroll}
             style={{ 
               overflow: 'auto',
-              height: '370px'
+              width: '100%'
             }}
           >
           <div 
@@ -577,7 +596,8 @@ export default function PianoRoll({
             style={{ 
               width: `${gridWidth * CELL_WIDTH}px`, 
               height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`,
-              position: 'relative'
+              position: 'relative',
+              backgroundColor: '#111827'
             }}
           >
             <canvas
@@ -597,7 +617,8 @@ export default function PianoRoll({
                 top: 0,
                 left: 0,
                 width: `${gridWidth * CELL_WIDTH}px`,
-                height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`
+                height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`,
+                backgroundColor: '#1F2937'
               }}
             />
             
@@ -627,9 +648,12 @@ export default function PianoRoll({
             
             {/* Horizontal lines */}
             {Array.from({ length: NOTES.length * OCTAVES.length + 1 }, (_, i) => {
-              const noteIndex = i % NOTES.length;
-              const note = NOTES[NOTES.length - 1 - noteIndex];
-              const isC = note === 'C';
+              // In our vertical layout (high notes on top), an octave separator line
+              // should be drawn between C of one octave and B of the octave below it.
+              // This corresponds to the line at the top of each 'B' note's row.
+              // The rows for 'B' notes are at indices 12, 24, 36, etc.
+              // So, the line is an octave separator if its index `i` is a multiple of 12 (for i > 0).
+              const isOctaveSeparator = i > 0 && i % NOTES.length === 0;
               
               return (
                 <line
@@ -638,8 +662,8 @@ export default function PianoRoll({
                   y1={i * CELL_HEIGHT}
                   x2={gridWidth * CELL_WIDTH}
                   y2={i * CELL_HEIGHT}
-                  stroke={isC ? '#6B7280' : '#374151'}
-                  strokeWidth={isC ? 2 : 1}
+                  stroke={isOctaveSeparator ? '#6B7280' : '#374151'}
+                  strokeWidth={isOctaveSeparator ? 2 : 1}
                 />
               );
             })}
