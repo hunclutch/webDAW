@@ -17,9 +17,10 @@ interface PianoRollProps {
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const OCTAVES = [1, 2, 3, 4, 5, 6, 7]; // Low to high for visual layout
 const INITIAL_MEASURES = 20; // 20小節デフォルト
-const STEPS_PER_MEASURE = 4; // 4分音符単位（4/4拍子で4分音符4つ = 1小節）
-const CELL_WIDTH = 24;
+// 1小節 = 16ステップ（16分音符ベース）
+const BASE_CELL_WIDTH = 24;
 const CELL_HEIGHT = 20;
+const ZOOM_LEVELS = [0.5, 0.75, 1, 1.5, 2, 3, 4]; // ズームレベル
 const DRAG_THRESHOLD = 5; // ドラッグと判定するピクセル距離
 
 // ドラム用のマッピング（オクターブ4の音程をドラムに対応）
@@ -56,7 +57,9 @@ export default function PianoRoll({
   const [mouseDownPos, setMouseDownPos] = useState<{ x: number; y: number } | null>(null);
   const [hasMoved, setHasMoved] = useState(false);
   const [lastPreviewTime, setLastPreviewTime] = useState(0);
-  const gridWidth = measures * STEPS_PER_MEASURE; // 小節数 × 16分音符
+  const [zoomLevel, setZoomLevel] = useState(2); // デフォルトズームレベルインデックス
+  const gridWidth = measures * 16; // 小節数 × 16分音符（1小節 = 16ステップ）
+  const CELL_WIDTH = BASE_CELL_WIDTH * ZOOM_LEVELS[zoomLevel]; // ズームに応じたセル幅
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gridScrollRef = useRef<HTMLDivElement>(null);
@@ -79,9 +82,9 @@ export default function PianoRoll({
     }
   }, []);
   
-  // 小節数が変更されたときのcanvas再描画
+  // 小節数やズームレベルが変更されたときのcanvas再描画
   useEffect(() => {
-    console.log('Measures updated to:', measures, 'Grid width:', gridWidth);
+    console.log('Canvas update - Measures:', measures, 'Grid width:', gridWidth, 'Zoom:', ZOOM_LEVELS[zoomLevel]);
     
     // Canvasサイズを強制的に更新
     if (canvasRef.current) {
@@ -109,7 +112,7 @@ export default function PianoRoll({
       // 強制的にスクロール領域を更新
       scrollContainer.scrollLeft = scrollContainer.scrollLeft; // 現在位置を維持
     }
-  }, [measures, gridWidth]);
+  }, [measures, gridWidth, CELL_WIDTH, zoomLevel]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop;
@@ -409,6 +412,31 @@ export default function PianoRoll({
               />
             </div>
           )}
+          
+          {/* ズームコントロール */}
+          <div className="flex items-center space-x-1">
+            <label className="text-sm text-gray-400 whitespace-nowrap">Zoom:</label>
+            <button
+              onClick={() => setZoomLevel(Math.max(0, zoomLevel - 1))}
+              disabled={zoomLevel === 0}
+              className="w-8 h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm rounded flex items-center justify-center"
+              title="Zoom Out"
+            >
+              -
+            </button>
+            <span className="text-sm text-gray-300 w-12 text-center">
+              {Math.round(ZOOM_LEVELS[zoomLevel] * 100)}%
+            </span>
+            <button
+              onClick={() => setZoomLevel(Math.min(ZOOM_LEVELS.length - 1, zoomLevel + 1))}
+              disabled={zoomLevel === ZOOM_LEVELS.length - 1}
+              className="w-8 h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm rounded flex items-center justify-center"
+              title="Zoom In"
+            >
+              +
+            </button>
+          </div>
+          
           <button
             onClick={() => onNotesChange([])}
             className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded whitespace-nowrap"
@@ -475,7 +503,7 @@ export default function PianoRoll({
           }}
         >
           <div 
-            key={`grid-container-${measures}-${gridWidth}`}
+            key={`grid-container-${measures}-${gridWidth}-${zoomLevel}`}
             style={{ 
               width: `${gridWidth * CELL_WIDTH}px`, 
               height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`,
@@ -483,7 +511,7 @@ export default function PianoRoll({
             }}
           >
             <canvas
-              key={`canvas-${measures}-${gridWidth}`} // より詳細なキーで確実にリレンダリング
+              key={`canvas-${measures}-${gridWidth}-${zoomLevel}`}
               ref={canvasRef}
               width={gridWidth * CELL_WIDTH}
               height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
@@ -505,7 +533,7 @@ export default function PianoRoll({
             
             {/* Grid lines */}
             <svg
-              key={`svg-${measures}-${gridWidth}`} // より詳細なキーで確実にリレンダリング
+              key={`svg-${measures}-${gridWidth}-${zoomLevel}`}
               className="absolute top-0 left-0 pointer-events-none"
               width={gridWidth * CELL_WIDTH}
               height={NOTES.length * OCTAVES.length * CELL_HEIGHT}
@@ -522,8 +550,8 @@ export default function PianoRoll({
                 y1={0}
                 x2={i * CELL_WIDTH}
                 y2={NOTES.length * OCTAVES.length * CELL_HEIGHT}
-                stroke={i % 4 === 0 ? '#6B7280' : '#374151'}
-                strokeWidth={i % 4 === 0 ? 2 : 1}
+                stroke={i % 16 === 0 ? '#8B5CF6' : i % 4 === 0 ? '#6B7280' : '#374151'}
+                strokeWidth={i % 16 === 0 ? 3 : i % 4 === 0 ? 2 : 1}
               />
             ))}
             
