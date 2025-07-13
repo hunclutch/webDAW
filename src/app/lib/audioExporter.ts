@@ -48,9 +48,16 @@ export class AudioExporter {
     tracks.forEach(track => {
       if (track.type === 'synth' && track.notes) {
         track.notes.forEach(note => {
-          // ノートの終了位置を小節数に変換（16分音符単位で計算）
+          // ノートの終了位置を小節数に変換（4分音符単位で計算）
           const noteEndStep = note.start + note.duration;
-          const noteEndMeasure = Math.ceil(noteEndStep / 16);
+          const noteEndMeasure = Math.ceil(noteEndStep / 4);
+          lastMeasure = Math.max(lastMeasure, noteEndMeasure);
+        });
+      } else if (track.type === 'drum' && track.notes) {
+        // ドラムトラックのノートも考慮
+        track.notes.forEach(note => {
+          const noteEndStep = note.start + note.duration;
+          const noteEndMeasure = Math.ceil(noteEndStep / 4);
           lastMeasure = Math.max(lastMeasure, noteEndMeasure);
         });
       } else if (track.type === 'drum' && track.drumPattern) {
@@ -59,6 +66,7 @@ export class AudioExporter {
         Object.values(pattern).forEach(steps => {
           steps.forEach((active: boolean, stepIndex: number) => {
             if (active) {
+              // ドラムパターンは16分音符ベースのまま保持
               const stepMeasure = Math.ceil((stepIndex + 1) / 16);
               lastMeasure = Math.max(lastMeasure, stepMeasure);
             }
@@ -92,8 +100,14 @@ export class AudioExporter {
 
     if (track.type === 'synth' && track.notes) {
       await this.renderSynthTrack(track, context, gainNode, bpm);
-    } else if (track.type === 'drum' && track.drumPattern) {
-      await this.renderDrumTrack(track, context, gainNode, duration, bpm);
+    } else if (track.type === 'drum') {
+      if (track.notes && track.notes.length > 0) {
+        // ドラムトラックのノート再生（ピアノロールで配置されたノート）
+        await this.renderDrumNotes(track, context, gainNode, bpm);
+      } else if (track.drumPattern) {
+        // ドラムパターン再生（DrumPadsで配置されたパターン）
+        await this.renderDrumTrack(track, context, gainNode, duration, bpm);
+      }
     }
   }
 
@@ -103,7 +117,7 @@ export class AudioExporter {
     gainNode: GainNode, 
     bpm: number
   ): Promise<void> {
-    const stepDuration = (60 / bpm) / 4; // 16分音符の長さ
+    const stepDuration = 60 / bpm; // 4分音符の長さ
 
     for (const note of track.notes) {
       const frequency = this.noteToFrequency(note.note, note.octave);
@@ -111,44 +125,87 @@ export class AudioExporter {
 
       const noteDuration = note.duration * stepDuration;
       
-      // オシレーターとADSRエンベロープを作成
+      // オシレーター、フィルター、ADSRエンベロープを作成
       const oscillator = context.createOscillator();
       const envelope = context.createGain();
+      const filter = context.createBiquadFilter();
       
-      if (track.synthSettings) {
-        oscillator.type = track.synthSettings.waveform;
-      } else {
-        oscillator.type = 'sine';
-      }
+      // Synthesizer.tsと同じ設定を適用
+      const synthSettings = track.synthSettings || {
+        waveform: 'sawtooth',
+        attack: 0.02,
+        decay: 0.2,
+        sustain: 0.6,
+        release: 0.3,
+        filterFreq: 3000,
+        filterQ: 0.5,
+      };
       
+      oscillator.type = synthSettings.waveform;
       oscillator.frequency.value = frequency;
-      oscillator.connect(envelope);
+      
+      // フィルター設定
+      filter.type = 'lowpass';
+      filter.frequency.value = synthSettings.filterFreq;
+      filter.Q.value = synthSettings.filterQ;
+      
+      // ノード接続: oscillator -> filter -> envelope -> gainNode
+      oscillator.connect(filter);
+      filter.connect(envelope);
       envelope.connect(gainNode);
       
-      // ADSRエンベロープを適用
-      if (track.synthSettings) {
-        const { attack, decay, sustain, release } = track.synthSettings;
-        const sustainLevel = sustain * note.velocity;
+      // ADSRエンベロープを適用（Synthesizer.tsと同じロジック）
+      const maxGain = note.velocity * 0.3; // Synthesizer.tsと同じ音量制限
+      const { attack, decay, sustain, release } = synthSettings;
+      const sustainLevel = maxGain * sustain;
 
-        envelope.gain.setValueAtTime(0, startTime);
-        envelope.gain.linearRampToValueAtTime(note.velocity, startTime + attack);
-        envelope.gain.linearRampToValueAtTime(sustainLevel, startTime + attack + decay);
-
-        // releaseがnoteDurationより長い場合はnoteDurationに制限
-        const releaseTime = Math.max(0, Math.min(release, noteDuration));
-        envelope.gain.setValueAtTime(
-          sustainLevel,
-          startTime + noteDuration - releaseTime
-        );
-        envelope.gain.linearRampToValueAtTime(0, startTime + noteDuration);
-      } else {
-        envelope.gain.setValueAtTime(note.velocity, startTime);
-        envelope.gain.linearRampToValueAtTime(0, startTime + noteDuration);
+      // エンベロープ設定
+      envelope.gain.setValueAtTime(0, startTime);
+      envelope.gain.linearRampToValueAtTime(maxGain, startTime + attack);
+      envelope.gain.linearRampToValueAtTime(sustainLevel, startTime + attack + decay);
+      
+      // サステインレベルを維持し、リリースはノート終了時に開始
+      const releaseStartTime = startTime + noteDuration - release;
+      if (releaseStartTime > startTime + attack + decay) {
+        envelope.gain.setValueAtTime(sustainLevel, releaseStartTime);
       }
+      envelope.gain.linearRampToValueAtTime(0, startTime + noteDuration);
       
       oscillator.start(startTime);
       oscillator.stop(startTime + noteDuration);
     }
+  }
+
+  private async renderDrumNotes(
+    track: Track, 
+    context: OfflineAudioContext, 
+    gainNode: GainNode, 
+    bpm: number
+  ): Promise<void> {
+    const stepDuration = 60 / bpm; // 4分音符の長さ
+
+    for (const note of track.notes) {
+      const startTime = Math.max(0, note.start * stepDuration);
+      const drumType = this.noteToDrumType(note.note, note.octave);
+      
+      if (drumType) {
+        await this.createDrumHit(context, gainNode, drumType, startTime, note.velocity);
+      }
+    }
+  }
+
+  // 音程をドラムタイプに変換
+  private noteToDrumType(note: string, octave: number): string | null {
+    const noteKey = `${note}${octave}`;
+    const drumMapping: { [key: string]: string } = {
+      'C4': 'kick',
+      'D4': 'snare', 
+      'F#4': 'hihat',
+      'A#4': 'openhat',
+      'C5': 'crash',
+    };
+    
+    return drumMapping[noteKey] || null;
   }
 
   private async renderDrumTrack(
