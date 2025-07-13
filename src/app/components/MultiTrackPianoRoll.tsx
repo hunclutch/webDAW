@@ -65,6 +65,7 @@ export default function MultiTrackPianoRoll({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gridScrollRef = useRef<HTMLDivElement>(null);
+  const rulerRef = useRef<HTMLDivElement>(null);
 
   // C4を中央に配置とスクロール同期
   useEffect(() => {
@@ -118,18 +119,23 @@ export default function MultiTrackPianoRoll({
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop;
+    const scrollLeft = e.currentTarget.scrollLeft;
     
     if (scrollContainerRef.current && gridScrollRef.current) {
       if (e.currentTarget === scrollContainerRef.current) {
         gridScrollRef.current.scrollTop = scrollTop;
-      } else {
+      } else if (e.currentTarget === gridScrollRef.current) {
         scrollContainerRef.current.scrollTop = scrollTop;
+        // ルーラーも水平スクロールと同期
+        if (rulerRef.current) {
+          rulerRef.current.scrollLeft = scrollLeft;
+        }
       }
     }
   }, []);
 
   const positionToStep = (x: number) => {
-    return Math.floor(x / CELL_WIDTH);
+    return Math.round((x / CELL_WIDTH) * 4) / 4; // 0.25ステップ単位で丸める
   };
 
   const positionToNote = (y: number) => {
@@ -254,7 +260,7 @@ export default function MultiTrackPianoRoll({
 
     if (isDragging && dragStartNote) {
       // 新しいノートのドラッグ中 - 長さを調整
-      const newDuration = Math.max(1, step - dragStartStep + 1);
+      const newDuration = Math.max(0.25, step - dragStartStep + 1);
       const updatedNotes = selectedTrack.notes.map(n => 
         n.id === dragStartNote.id ? { ...n, duration: newDuration } : n
       );
@@ -263,7 +269,7 @@ export default function MultiTrackPianoRoll({
       // 既存ノートのリサイズ中
       if (resizeEdge === 'end') {
         // 右端をドラッグ - 右に伸びる（正の方向）、左に縮む（負の方向）
-        const newEnd = Math.max(resizeTarget.start + 1, step + 1); // 最小1ステップの長さを保証
+        const newEnd = Math.max(resizeTarget.start + 0.25, step + 1); // 最小0.25ステップの長さを保証
         const newDuration = newEnd - resizeTarget.start;
         const updatedNotes = selectedTrack.notes.map(n => 
           n.id === resizeTarget.id ? { ...n, duration: newDuration } : n
@@ -272,7 +278,7 @@ export default function MultiTrackPianoRoll({
       } else if (resizeEdge === 'start') {
         // 左端をドラッグ - 左に伸びる（負の方向）、右に縮む（正の方向）
         const originalEnd = resizeTarget.start + resizeTarget.duration;
-        const newStart = Math.max(0, Math.min(step, originalEnd - 1)); // 最小1ステップの長さを保証
+        const newStart = Math.max(0, Math.min(step, originalEnd - 0.25)); // 最小0.25ステップの長さを保証
         const newDuration = originalEnd - newStart;
         const updatedNotes = selectedTrack.notes.map(n => 
           n.id === resizeTarget.id ? { ...n, start: newStart, duration: newDuration } : n
@@ -374,10 +380,10 @@ export default function MultiTrackPianoRoll({
     const noteStartStep = note.start;
     const noteEndStep = note.start + note.duration - 1; // 1ステップ手前が実際の終端
     
-    if (Math.abs(clickStep - noteStartStep) <= 0.3) {
+    if (Math.abs(clickStep - noteStartStep) <= 0.5) {
       return 'start'; // 左端
     }
-    if (Math.abs(clickStep - noteEndStep) <= 0.3) {
+    if (Math.abs(clickStep - noteEndStep) <= 0.5) {
       return 'end'; // 右端
     }
     return null; // 中央
@@ -498,15 +504,79 @@ export default function MultiTrackPianoRoll({
         </div>
 
         {/* Grid */}
-        <div 
-          className="relative flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
-          ref={gridScrollRef}
-          onScroll={handleScroll}
-          style={{ 
-            overflow: 'auto',
-            height: '400px'
-          }}
-        >
+        <div className="flex-1 flex flex-col">
+          {/* Time Ruler */}
+          <div 
+            ref={rulerRef}
+            className="bg-gray-700 border-b border-gray-600 overflow-x-auto scrollbar-none"
+            style={{ height: '30px' }}
+            onScroll={(e) => {
+              if (gridScrollRef.current) {
+                gridScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+              }
+            }}
+          >
+            <div 
+              style={{ 
+                width: `${gridWidth * CELL_WIDTH}px`, 
+                height: '30px',
+                position: 'relative'
+              }}
+            >
+              {/* Beat labels */}
+              {Array.from({ length: Math.ceil(gridWidth / 4) }, (_, i) => {
+                const beatNumber = i + 1;
+                const measureNumber = Math.ceil(beatNumber / 4);
+                const beatInMeasure = ((beatNumber - 1) % 4) + 1;
+                return (
+                  <div
+                    key={`beat-${i}`}
+                    className="absolute text-xs text-gray-300 font-mono"
+                    style={{
+                      left: `${i * 4 * CELL_WIDTH}px`,
+                      top: '2px',
+                      width: `${4 * CELL_WIDTH}px`,
+                      textAlign: 'center'
+                    }}
+                  >
+                    {measureNumber}.{beatInMeasure}
+                  </div>
+                );
+              })}
+              
+              {/* 16th note subdivisions */}
+              {Array.from({ length: gridWidth }, (_, i) => {
+                const is16thNote = (i % 4) !== 0;
+                const subdivision = (i % 4) + 1;
+                return is16thNote ? (
+                  <div
+                    key={`sub-${i}`}
+                    className="absolute text-xs text-gray-500 font-mono"
+                    style={{
+                      left: `${i * CELL_WIDTH}px`,
+                      top: '16px',
+                      width: `${CELL_WIDTH}px`,
+                      textAlign: 'center',
+                      fontSize: '10px'
+                    }}
+                  >
+                    {subdivision}
+                  </div>
+                ) : null;
+              })}
+            </div>
+          </div>
+          
+          {/* Piano Roll Grid */}
+          <div 
+            className="relative flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500" 
+            ref={gridScrollRef}
+            onScroll={handleScroll}
+            style={{ 
+              overflow: 'auto',
+              height: '370px'
+            }}
+          >
           <div 
             key={`multitrack-grid-container-${measures}-${gridWidth}-${zoomLevel}`}
             style={{ 
@@ -693,6 +763,7 @@ export default function MultiTrackPianoRoll({
             </defs>
             </svg>
           </div>
+        </div>
         </div>
         </div>
       </div>
