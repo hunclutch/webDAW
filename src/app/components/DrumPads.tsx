@@ -29,8 +29,33 @@ export default function DrumPads({
     const newSteps = [...pattern.steps];
     const step = newSteps[stepIndex];
     if (step) {
-      (step as any)[drumType] = !(step as any)[drumType];
-      onPatternChange({ ...pattern, steps: newSteps });
+      const newStep = { ...step };
+      
+      // 型安全な方法でドラムタイプを更新
+      switch (drumType) {
+        case 'kick':
+          newStep.kick = !newStep.kick;
+          break;
+        case 'snare':
+          newStep.snare = !newStep.snare;
+          break;
+        case 'hihat':
+          newStep.hihat = !newStep.hihat;
+          break;
+        case 'openhat':
+          newStep.openhat = !newStep.openhat;
+          break;
+        case 'crash':
+          newStep.crash = !newStep.crash;
+          break;
+        default:
+          console.error('Unknown drum type:', drumType);
+          return;
+      }
+      
+      newSteps[stepIndex] = newStep;
+      const newPattern = { ...pattern, steps: newSteps };
+      onPatternChange(newPattern);
     }
   };
 
@@ -112,13 +137,36 @@ export default function DrumPads({
             <div className="flex space-x-1">
               {Array.from({ length: pattern.length }, (_, stepIndex) => {
                 const step = pattern.steps[stepIndex];
-                const isActive = step && (step as any)[drum.key];
+                let isActive = false;
+                if (step) {
+                  switch (drum.key) {
+                    case 'kick':
+                      isActive = step.kick;
+                      break;
+                    case 'snare':
+                      isActive = step.snare;
+                      break;
+                    case 'hihat':
+                      isActive = step.hihat;
+                      break;
+                    case 'openhat':
+                      isActive = step.openhat;
+                      break;
+                    case 'crash':
+                      isActive = step.crash;
+                      break;
+                  }
+                }
                 const isCurrent = isPlaying && currentStep === stepIndex;
                 
                 return (
                   <button
                     key={stepIndex}
-                    onClick={() => toggleStep(stepIndex, drum.key)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleStep(stepIndex, drum.key);
+                    }}
                     className={`w-6 h-6 rounded border transition-all ${
                       isActive
                         ? `${drum.color} border-white`

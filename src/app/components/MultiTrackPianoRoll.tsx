@@ -481,7 +481,9 @@ export default function MultiTrackPianoRoll({
                 display: 'block',
                 position: 'absolute',
                 top: 0,
-                left: 0
+                left: 0,
+                width: `${gridWidth * CELL_WIDTH}px`,
+                height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`
               }}
             />
             

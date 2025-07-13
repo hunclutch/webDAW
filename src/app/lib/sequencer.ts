@@ -110,9 +110,16 @@ export class Sequencer {
       if (track.muted) return;
       
       if (track.type === 'synth' && track.notes.length > 0) {
+        // シンセトラックのノート再生
         this.scheduleNotesForTrack(track, currentTime, endTime, currentAudioTime);
-      } else if (track.type === 'drum' && track.drumPattern) {
-        this.scheduleDrumPatternForTrack(track, currentTime, endTime, currentAudioTime);
+      } else if (track.type === 'drum') {
+        if (track.notes.length > 0) {
+          // ドラムトラックのノート再生（ピアノロールで配置されたノート）
+          this.scheduleNotesForTrack(track, currentTime, endTime, currentAudioTime);
+        } else if (track.drumPattern) {
+          // ドラムパターン再生（DrumPadsで配置されたパターン）- ノートがない場合のみ
+          this.scheduleDrumPatternForTrack(track, currentTime, endTime, currentAudioTime);
+        }
       }
     });
   }
@@ -139,14 +146,26 @@ export class Sequencer {
         if (this.isPlaying && noteStartTime >= this.audioContext.currentTime && !this.scheduledNotes.has(noteKey)) {
           this.scheduledNotes.add(noteKey);
           
-          this.synthesizer.playNote(
-            note.note,
-            note.octave,
-            note.velocity,
-            noteDuration,
-            track.synthSettings,
-            noteStartTime
-          );
+          if (track.type === 'drum') {
+            // ドラムノートの場合、音程に基づいてドラムサウンドを再生
+            const drumType = this.noteToDrumType(note.note, note.octave);
+            if (drumType) {
+              // ドラムマシンを使用してドラムサウンドを再生
+              setTimeout(() => {
+                this.drumMachine.playDrumSound(drumType, note.velocity);
+              }, (noteStartTime - this.audioContext.currentTime) * 1000);
+            }
+          } else {
+            // シンセノートの場合
+            this.synthesizer.playNote(
+              note.note,
+              note.octave,
+              note.velocity,
+              noteDuration,
+              track.synthSettings,
+              noteStartTime
+            );
+          }
           
           // ノート終了後にスケジュールから削除
           setTimeout(() => {
@@ -237,5 +256,19 @@ export class Sequencer {
 
   playDrumPreview(drumType: string) {
     this.drumMachine.playDrumSound(drumType, 0.8);
+  }
+
+  // 音程をドラムタイプに変換
+  private noteToDrumType(note: string, octave: number): string | null {
+    const noteKey = `${note}${octave}`;
+    const drumMapping: { [key: string]: string } = {
+      'C4': 'kick',
+      'D4': 'snare', 
+      'F#4': 'hihat',
+      'A#4': 'openhat',
+      'C5': 'crash',
+    };
+    
+    return drumMapping[noteKey] || null;
   }
 }

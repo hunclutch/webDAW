@@ -11,6 +11,7 @@ interface PianoRollProps {
   playheadPosition: number;
   measures?: number;
   onMeasuresChange?: (measures: number) => void;
+  trackType?: 'synth' | 'drum' | 'audio';
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -21,6 +22,15 @@ const CELL_WIDTH = 24;
 const CELL_HEIGHT = 20;
 const DRAG_THRESHOLD = 5; // ドラッグと判定するピクセル距離
 
+// ドラム用のマッピング（オクターブ4の音程をドラムに対応）
+const DRUM_MAPPING = [
+  { note: 'C', octave: 4, name: 'Kick', color: '#EF4444' },
+  { note: 'D', octave: 4, name: 'Snare', color: '#3B82F6' },
+  { note: 'F#', octave: 4, name: 'Hi-Hat', color: '#EAB308' },
+  { note: 'A#', octave: 4, name: 'Open Hat', color: '#22C55E' },
+  { note: 'C', octave: 5, name: 'Crash', color: '#A855F7' },
+];
+
 export default function PianoRoll({
   notes,
   onNotesChange,
@@ -29,6 +39,7 @@ export default function PianoRoll({
   playheadPosition,
   measures = INITIAL_MEASURES,
   onMeasuresChange,
+  trackType = 'synth',
 }: PianoRollProps) {
   // const [selectedNote, setSelectedNote] = useState<string | null>(null); // 未使用のためコメントアウト
   const [isDrawing, setIsDrawing] = useState(false);
@@ -323,6 +334,20 @@ export default function PianoRoll({
 
   const isBlackKey = (note: string) => note.includes('#');
 
+  // ドラム名を取得するヘルパー関数
+  const getDrumName = (note: string, octave: number): string | null => {
+    if (trackType !== 'drum') return null;
+    const drumMapping = DRUM_MAPPING.find(d => d.note === note && d.octave === octave);
+    return drumMapping ? drumMapping.name : null;
+  };
+
+  // ドラムカラーを取得するヘルパー関数
+  const getDrumColor = (note: string, octave: number): string | null => {
+    if (trackType !== 'drum') return null;
+    const drumMapping = DRUM_MAPPING.find(d => d.note === note && d.octave === octave);
+    return drumMapping ? drumMapping.color : null;
+  };
+
   // ノートの端をクリックしているかチェック（リサイズハンドル）
   const isNearNoteEdge = (note: Note, clickStep: number): 'start' | 'end' | null => {
     const noteStartStep = note.start;
@@ -389,12 +414,17 @@ export default function PianoRoll({
             [...NOTES].reverse().map(note => {
               const isBlack = isBlackKey(note);
               const isC4 = note === 'C' && octave === 4;
+              const drumName = getDrumName(note, octave);
+              const drumColor = getDrumColor(note, octave);
+              
               return (
                 <button
                   key={`${note}${octave}`}
                   onClick={() => handleKeyClick(note, octave)}
                   className={`w-16 border border-gray-600 text-xs font-mono flex items-center justify-center transition-colors flex-shrink-0 ${
-                    isC4
+                    drumName
+                      ? 'text-white border-gray-500' // ドラムキーの場合
+                      : isC4
                       ? 'bg-blue-500 text-white border-blue-400'
                       : isBlack
                       ? 'bg-gray-900 text-white hover:bg-gray-700'
@@ -403,10 +433,11 @@ export default function PianoRoll({
                   style={{ 
                     height: `${CELL_HEIGHT}px`,
                     minHeight: `${CELL_HEIGHT}px`,
-                    maxHeight: `${CELL_HEIGHT}px`
+                    maxHeight: `${CELL_HEIGHT}px`,
+                    backgroundColor: drumColor || undefined
                   }}
                 >
-                  {note}{octave}
+                  {drumName || `${note}${octave}`}
                 </button>
               );
             })
@@ -446,7 +477,9 @@ export default function PianoRoll({
                 display: 'block',
                 position: 'absolute',
                 top: 0,
-                left: 0
+                left: 0,
+                width: `${gridWidth * CELL_WIDTH}px`,
+                height: `${NOTES.length * OCTAVES.length * CELL_HEIGHT}px`
               }}
             />
             

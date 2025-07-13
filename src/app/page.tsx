@@ -191,33 +191,140 @@ export default function Home() {
     setDawState({ ...dawState, bpm });
   }, [audioEngine, dawState, setDawState]);
 
+  // ノートをドラムパターンに変換
+  const notesToDrumPattern = useCallback((notes: Note[]): DrumPattern => {
+    const steps = Array.from({ length: 16 }, () => ({
+      kick: false,
+      snare: false,
+      hihat: false,
+      openhat: false,
+      crash: false,
+      velocity: 0.8,
+    }));
+
+    const drumMapping = {
+      'C4': 'kick',
+      'D4': 'snare',
+      'F#4': 'hihat',
+      'A#4': 'openhat',
+      'C5': 'crash',
+    };
+
+    notes.forEach(note => {
+      const noteKey = `${note.note}${note.octave}`;
+      const drumType = drumMapping[noteKey as keyof typeof drumMapping];
+      if (drumType && note.start >= 0 && note.start < 16) {
+        const stepIndex = Math.floor(note.start);
+        if (steps[stepIndex]) {
+          (steps[stepIndex] as any)[drumType] = true;
+          steps[stepIndex].velocity = note.velocity;
+        }
+      }
+    });
+
+    return { steps, length: 16 };
+  }, []);
+
   const handleNotesChange = useCallback((notes: Note[]) => {
     if (!selectedTrackId) return;
     
     setDawState({
       ...dawState,
-      tracks: (dawState.tracks || []).map(track =>
-        track.id === selectedTrackId ? { ...track, notes } : track
-      ),
+      tracks: (dawState.tracks || []).map(track => {
+        if (track.id === selectedTrackId) {
+          // ドラムトラックの場合、ノートをドラムパターンにも変換
+          if (track.type === 'drum') {
+            const convertedPattern = notesToDrumPattern(notes);
+            console.log('Converting notes to drum pattern:', { notes, convertedPattern });
+            
+            // ピアノロールでノートが配置されている場合は、そのノートを優先
+            // ノートが空の場合はdrumPatternによる再生に戻る
+            return { 
+              ...track, 
+              notes,
+              drumPattern: convertedPattern
+            };
+          }
+          return { ...track, notes };
+        }
+        return track;
+      }),
     });
-  }, [selectedTrackId, dawState, setDawState]);
+  }, [selectedTrackId, dawState, setDawState, notesToDrumPattern]);
+
+  // ドラムパターンをノートに変換
+  const drumPatternToNotes = useCallback((pattern: DrumPattern): Note[] => {
+    const notes: Note[] = [];
+    const drumMapping = {
+      kick: { note: 'C', octave: 4 },
+      snare: { note: 'D', octave: 4 },
+      hihat: { note: 'F#', octave: 4 },
+      openhat: { note: 'A#', octave: 4 },
+      crash: { note: 'C', octave: 5 },
+    };
+
+    pattern.steps.forEach((step, stepIndex) => {
+      Object.entries(drumMapping).forEach(([drumType, noteInfo]) => {
+        if ((step as any)[drumType]) {
+          notes.push({
+            id: `drum-${drumType}-${stepIndex}-${Date.now()}`,
+            note: noteInfo.note,
+            octave: noteInfo.octave,
+            start: stepIndex,
+            duration: 1,
+            velocity: step.velocity,
+          });
+        }
+      });
+    });
+
+    return notes;
+  }, []);
 
   const handleDrumPatternChange = useCallback((pattern: DrumPattern) => {
     if (!selectedTrackId) return;
     
+    // DrumPadsで変更された場合、ノートをクリアしてパターンを優先
+    // これにより、DrumPadsとピアノロールの重複再生を防ぐ
     setDawState({
       ...dawState,
-      tracks: (dawState.tracks || []).map(track =>
-        track.id === selectedTrackId ? { ...track, drumPattern: pattern } : track
-      ),
+      tracks: (dawState.tracks || []).map(track => {
+        if (track.id === selectedTrackId) {
+          console.log('Updating drum pattern for track:', track.name, pattern);
+          return { 
+            ...track, 
+            drumPattern: pattern,
+            notes: [] // DrumPadsでの編集時はノートをクリア
+          };
+        }
+        return track;
+      }),
     });
   }, [selectedTrackId, dawState, setDawState]);
 
   const handleNotePreview = useCallback((note: string, octave: number) => {
-    if (audioEngine) {
-      audioEngine.getSequencer().playNotePreview(note, octave);
+    if (audioEngine && selectedTrackId) {
+      const selectedTrack = dawState.tracks?.find(track => track.id === selectedTrackId);
+      if (selectedTrack?.type === 'drum') {
+        // ドラムトラックの場合、音程に基づいてドラムサウンドを再生
+        const drumMapping: { [key: string]: string } = {
+          'C4': 'kick',
+          'D4': 'snare', 
+          'F#4': 'hihat',
+          'A#4': 'openhat',
+          'C5': 'crash',
+        };
+        const noteKey = `${note}${octave}`;
+        const drumType = drumMapping[noteKey];
+        if (drumType) {
+          audioEngine.getSequencer().playDrumPreview(drumType);
+        }
+      } else {
+        // シンセトラックの場合
+        audioEngine.getSequencer().playNotePreview(note, octave);
+      }
     }
-  }, [audioEngine]);
+  }, [audioEngine, selectedTrackId, dawState.tracks]);
 
   const handleDrumPreview = useCallback((drumType: string) => {
     if (audioEngine) {
@@ -484,9 +591,58 @@ export default function Home() {
                       } else {
                         // 新しいトラックを選択
                         setSelectedTrackId(track.id);
+                        
+                        // ドラムトラックの場合、パターンとノートの同期を確保
+                        if (track.type === 'drum') {
+                          let updatedTrack = track;
+                          let needsUpdate = false;
+
+                          // drumPatternが未定義の場合は初期化
+                          if (!track.drumPattern) {
+                            const defaultDrumPattern = {
+                              steps: Array.from({ length: 16 }, () => ({
+                                kick: false,
+                                snare: false,
+                                hihat: false,
+                                openhat: false,
+                                crash: false,
+                                velocity: 0.8,
+                              })),
+                              length: 16,
+                            };
+                            updatedTrack = { ...updatedTrack, drumPattern: defaultDrumPattern };
+                            needsUpdate = true;
+                          }
+
+                          // ドラムパターンが存在してパターンに何かデータがある場合、
+                          // ノートは空にしてパターンベースの再生を優先
+                          if (updatedTrack.drumPattern) {
+                            const hasActiveSteps = updatedTrack.drumPattern.steps.some(step => 
+                              step.kick || step.snare || step.hihat || step.openhat || step.crash
+                            );
+                            
+                            if (hasActiveSteps && (!updatedTrack.notes || updatedTrack.notes.length === 0)) {
+                              // パターンにデータがあるが、ノートがない場合はパターンを優先
+                              console.log('Initial sync: Using drum pattern for track:', track.name);
+                            } else if (!hasActiveSteps && updatedTrack.notes && updatedTrack.notes.length > 0) {
+                              // パターンは空だが、ノートがある場合はノートを優先
+                              console.log('Initial sync: Using notes for track:', track.name);
+                            }
+                          }
+                          
+                          if (needsUpdate) {
+                            setDawState({
+                              ...dawState,
+                              tracks: (dawState.tracks || []).map(t =>
+                                t.id === track.id ? updatedTrack : t
+                              ),
+                            });
+                          }
+                        }
+                        
                         // トラックタイプに応じてタブを切り替える
                         if (track.type === 'synth') setActiveTab('pianoroll');
-                        if (track.type === 'drum') setActiveTab('drums');
+                        if (track.type === 'drum') setActiveTab('pianoroll'); // ドラムもピアノロールをデフォルトに
                         setShowPianoRoll(true);
                       }
                     }}
@@ -581,16 +737,28 @@ export default function Home() {
                           </div>
                         )}
                         {selectedTrack.type === 'drum' && (
-                          <button
-                            onClick={() => setActiveTab('drums')}
-                            className={`px-3 py-1 text-sm rounded ${
-                              activeTab === 'drums'
-                                ? 'bg-gray-600 text-white'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                            }`}
-                          >
-                            Drum Pads
-                          </button>
+                          <>
+                            <button
+                              onClick={() => setActiveTab('pianoroll')}
+                              className={`px-3 py-1 text-sm rounded ${
+                                activeTab === 'pianoroll'
+                                  ? 'bg-gray-600 text-white'
+                                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                              }`}
+                            >
+                              Piano Roll
+                            </button>
+                            <button
+                              onClick={() => setActiveTab('drums')}
+                              className={`px-3 py-1 text-sm rounded ${
+                                activeTab === 'drums'
+                                  ? 'bg-gray-600 text-white'
+                                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                              }`}
+                            >
+                              Drum Pads
+                            </button>
+                          </>
                         )}
                       </>
                     )}
@@ -661,7 +829,7 @@ export default function Home() {
                 ) : (
                   // Show individual track editor when track is selected
                   <>
-                    {activeTab === 'pianoroll' && selectedTrack.type === 'synth' && (
+                    {activeTab === 'pianoroll' && (selectedTrack.type === 'synth' || selectedTrack.type === 'drum') && (
                       <PianoRoll
                         notes={selectedTrack.notes}
                         onNotesChange={handleNotesChange}
@@ -670,12 +838,23 @@ export default function Home() {
                         playheadPosition={playheadPosition}
                         measures={measures}
                         onMeasuresChange={setMeasures}
+                        trackType={selectedTrack.type}
                       />
                     )}
                     
-                    {activeTab === 'drums' && selectedTrack.type === 'drum' && selectedTrack.drumPattern && (
+                    {activeTab === 'drums' && selectedTrack.type === 'drum' && (
                       <DrumPads
-                        pattern={selectedTrack.drumPattern}
+                        pattern={selectedTrack.drumPattern || {
+                          steps: Array.from({ length: 16 }, () => ({
+                            kick: false,
+                            snare: false,
+                            hihat: false,
+                            openhat: false,
+                            crash: false,
+                            velocity: 0.8,
+                          })),
+                          length: 16,
+                        }}
                         onPatternChange={handleDrumPatternChange}
                         onDrumHit={handleDrumPreview}
                         isPlaying={isPlaying}
