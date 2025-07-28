@@ -56,14 +56,24 @@ export async function POST(request: NextRequest) {
       【出力形式】
       JSONの配列のみを返してください。説明は不要です。
       [{"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}]
+      
+      例：4小節のメロディー
+      [
+        {"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8},
+        {"note": "D", "octave": 4, "start": 1, "duration": 0.5, "velocity": 0.7},
+        {"note": "E", "octave": 4, "start": 1.5, "duration": 0.5, "velocity": 0.7},
+        {"note": "F", "octave": 4, "start": 2, "duration": 2, "velocity": 0.9},
+        {"note": "G", "octave": 4, "start": 4, "duration": 1, "velocity": 0.8}
+      ]
 
       【音楽的指示】
       - メロディーラインは歌いやすく覚えやすいものにする
       - 音域は3オクターブから5オクターブまで（octave: 3-5）
-      - リズムは4分音符(1.0)、8分音符(0.5)、2分音符(2.0)を適切に組み合わせる
-      - 開始位置は4分音符単位（0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5...）
+      - リズムは4分音符(duration: 1.0)、8分音符(duration: 0.5)、2分音符(duration: 2.0)を組み合わせる
+      - startは4分音符を基準とした位置（0から${length * 4 - 1}まで）
+      - 1小節目: start 0-3、2小節目: start 4-7、3小節目: start 8-11、4小節目: start 12-15
       - ベロシティは0.4から1.0の範囲で、表現豊かに設定
-      - 各小節4拍子で、合計${length * 4}拍を超えないように
+      - 全体で${length}小節（${length * 4}拍）の楽曲を作成
       - ${style === 'pop' ? 'キャッチーで親しみやすい' : 
           style === 'jazz' ? 'シンコペーションやブルーノートを含む' :
           style === 'classical' ? 'クラシカルで上品な' :
@@ -87,9 +97,18 @@ export async function POST(request: NextRequest) {
       【出力形式】
       JSONの配列のみを返してください。ルート音のみ（トライアドの最低音）を指定：
       [{"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6}]
+      
+      例：4小節のコード進行（C-Am-F-G）
+      [
+        {"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6},
+        {"note": "A", "octave": 3, "start": 4, "duration": 4, "velocity": 0.6},
+        {"note": "F", "octave": 3, "start": 8, "duration": 4, "velocity": 0.6},
+        {"note": "G", "octave": 3, "start": 12, "duration": 4, "velocity": 0.6}
+      ]
 
       【音楽的指示】
-      - 各コードは1小節（4拍）持続
+      - 各コードは1小節（4拍）持続、duration: 4を使用
+      - start位置: 1小節目=0, 2小節目=4, 3小節目=8, 4小節目=12
       - ルート音は3オクターブで指定
       - ${style === 'pop' ? 'I-V-vi-IV、vi-IV-I-V等のポップス定番進行' :
           style === 'jazz' ? 'ii-V-I、I-vi-ii-V等のジャズ定番進行' :
