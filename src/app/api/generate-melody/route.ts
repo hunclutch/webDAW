@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 export async function POST(request: NextRequest) {
+  let requestType = 'melody'; // Default fallback
+  
   try {
     console.log('ChatGPT API request started');
     const body = await request.json();
@@ -17,6 +19,8 @@ export async function POST(request: NextRequest) {
       complexity = 'medium',
       apiKey
     } = body;
+    
+    requestType = type; // Store type for error handling
 
     // Check if user provided API key or use environment variable as fallback
     let openaiApiKey = apiKey;
@@ -123,6 +127,8 @@ export async function POST(request: NextRequest) {
           complexity === 'medium' ? '適度な変化とフィル' :
           '複雑で技巧的な'}パターンにする
       ${keywords ? `- 指定されたキーワード「${keywords}」の雰囲気を反映したリズムパターンにする` : ''}`;
+    } else {
+      throw new Error(`Unsupported generation type: ${type}`);
     }
 
     console.log('Sending request to ChatGPT with parameters:', { key, scale, length, tempo, style, mood, type });
@@ -171,39 +177,42 @@ export async function POST(request: NextRequest) {
       throw new Error('ChatGPTの応答をJSON形式で解析できませんでした');
     }
 
-    // Validate that it's an array
-    if (!Array.isArray(melodyData)) {
-      throw new Error('ChatGPTの応答が配列形式ではありません');
-    }
-
-    // Convert to Note format with unique IDs and validation
-    const notes = melodyData
-      .filter((noteData: any) => {
-        // Basic validation
-        return noteData.note && 
-               typeof noteData.octave === 'number' && 
-               typeof noteData.start === 'number' && 
-               typeof noteData.duration === 'number' && 
-               typeof noteData.velocity === 'number';
-      })
-      .map((noteData: any, index: number) => ({
-        id: `chatgpt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${index}`,
-        note: noteData.note,
-        octave: Math.max(1, Math.min(7, noteData.octave)), // Clamp octave to valid range
-        start: Math.max(0, noteData.start), // Ensure positive start time
-        duration: Math.max(0.25, noteData.duration), // Minimum duration
-        velocity: Math.max(0.1, Math.min(1.0, noteData.velocity)) // Clamp velocity
-      }));
-
-    if (notes.length === 0) {
-      throw new Error('ChatGPTから有効な音符データを取得できませんでした');
-    }
-
     if (type === 'drums') {
-      // For drum patterns, return the pattern object instead
-      console.log('Successfully generated drum pattern with', melodyData.steps?.length || 0, 'steps');
+      // For drum patterns, validate it's an object with steps
+      if (!melodyData || typeof melodyData !== 'object' || !melodyData.steps) {
+        throw new Error('ChatGPTの応答がドラムパターン形式ではありません');
+      }
+      const stepsCount = melodyData.steps?.length || 0;
+      console.log('Successfully generated drum pattern with', stepsCount, 'steps');
       return NextResponse.json({ pattern: melodyData });
     } else {
+      // Validate that it's an array for melody/chords
+      if (!Array.isArray(melodyData)) {
+        throw new Error('ChatGPTの応答が配列形式ではありません');
+      }
+      // Convert to Note format with unique IDs and validation for melody/chords
+      const notes = melodyData
+        .filter((noteData: any) => {
+          // Basic validation
+          return noteData.note && 
+                 typeof noteData.octave === 'number' && 
+                 typeof noteData.start === 'number' && 
+                 typeof noteData.duration === 'number' && 
+                 typeof noteData.velocity === 'number';
+        })
+        .map((noteData: any, index: number) => ({
+          id: `chatgpt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${index}`,
+          note: noteData.note,
+          octave: Math.max(1, Math.min(7, noteData.octave)), // Clamp octave to valid range
+          start: Math.max(0, noteData.start), // Ensure positive start time
+          duration: Math.max(0.25, noteData.duration), // Minimum duration
+          velocity: Math.max(0.1, Math.min(1.0, noteData.velocity)) // Clamp velocity
+        }));
+
+      if (notes.length === 0) {
+        throw new Error('ChatGPTから有効な音符データを取得できませんでした');
+      }
+
       console.log('Successfully generated notes:', notes.length, 'notes');
       return NextResponse.json({ notes });
     }
@@ -211,7 +220,7 @@ export async function POST(request: NextRequest) {
     console.error('Error generating melody:', error);
     console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
     
-    if (type === 'drums') {
+    if (requestType === 'drums') {
       // Return fallback drum pattern on error
       const fallbackPattern = generateFallbackDrumPattern(4);
       return NextResponse.json({ pattern: fallbackPattern });
