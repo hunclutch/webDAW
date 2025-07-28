@@ -120,7 +120,7 @@ export default function MelodyGeneratorComponent({ onMelodyGenerated, onDrumPatt
             <input
               type="number"
               min="1"
-              max="16"
+              max="64"
               value={drumParams.length}
               onChange={(e) => setDrumParams({ ...drumParams, length: parseInt(e.target.value) || 4 })}
               className="w-full bg-gray-700 text-white rounded px-3 py-2 border border-gray-600 focus:border-blue-500 focus:outline-none"
@@ -245,7 +245,7 @@ export default function MelodyGeneratorComponent({ onMelodyGenerated, onDrumPatt
           <input
             type="number"
             min="1"
-            max="16"
+            max="64"
             value={params.length}
             onChange={(e) => setParams({ ...params, length: parseInt(e.target.value) || 4 })}
             className="w-full bg-gray-700 text-white rounded px-3 py-2 border border-gray-600 focus:border-blue-500 focus:outline-none"

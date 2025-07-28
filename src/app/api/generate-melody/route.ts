@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
         }
       ],
       temperature: 0.8,
-      max_tokens: 1000
+      max_tokens: Math.max(1000, length * 100) // Dynamic token limit based on measure count
     });
     
     console.log('ChatGPT response received:', response.choices[0]?.message?.content);
