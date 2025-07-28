@@ -43,113 +43,49 @@ export async function POST(request: NextRequest) {
     let prompt: string;
     
     if (type === 'melody') {
-      prompt = `あなたは熟練した作曲家です。以下の条件で${mood}で${style}なメロディーを作成してください：
+      prompt = `${length}小節の${style}メロディーを${key} ${scale}スケールで作成してください。
 
-      【基本設定】
-      - 調性: ${key} ${scale}スケール
-      - 小節数: ${length}小節
-      - テンポ: ${tempo} BPM
-      - スタイル: ${style}
-      - ムード: ${mood}
-      ${keywords ? `- キーワード: ${keywords}（この要素を反映してください）` : ''}
+JSON配列で返してください：
+[{"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}]
 
-      【出力形式】
-      JSONの配列のみを返してください。説明は不要です。
-      [{"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}]
-      
-      【重要な制約】
-      - 必ず${length}小節分の音楽を生成してください
-      - start値の範囲: 0から${length * 4 - 1}まで使用
-      - 各小節に音符を配置し、空の小節を作らない
-      - 音符数の目安: 最低${length * 2}個以上の音符を生成
-      
-      【JSON形式の例】
-      start値が0-${length * 4 - 1}の範囲内で、${length}小節すべてに音符を配置
+条件:
+- ${length}小節 = ${length * 4}拍（start: 0-${length * 4 - 1}）
+- 各小節に音符を配置
+- octave: 3-5
+- duration: 4分音符=1.0, 8分音符=0.5, 2分音符=2.0
+- velocity: 0.4-1.0
+- ${mood}な雰囲気${keywords ? `、${keywords}の要素を含む` : ''}
 
-      【音楽的指示】
-      - メロディーラインは歌いやすく覚えやすいものにする
-      - 音域は3オクターブから5オクターブまで（octave: 3-5）
-      - リズムは4分音符(duration: 1.0)、8分音符(duration: 0.5)、2分音符(duration: 2.0)を組み合わせる
-      - startは4分音符を基準とした位置（0から${length * 4 - 1}まで）
-      - 小節の区切り: ${Array.from({length}, (_, i) => `${i + 1}小節目: start ${i * 4}-${i * 4 + 3}`).join('、')}
-      - ベロシティは0.4から1.0の範囲で、表現豊かに設定
-      - 全体で${length}小節（${length * 4}拍分の4分音符）の楽曲を作成
-      - 必ず${length}小節すべてに音符を配置してください
-      - 重要：${length}小節分の音楽を作ってください（短く終わらせないで）
-      - 音符の総数は${length}小節に応じて適切に増やしてください
-      - ${style === 'pop' ? 'キャッチーで親しみやすい' : 
-          style === 'jazz' ? 'シンコペーションやブルーノートを含む' :
-          style === 'classical' ? 'クラシカルで上品な' :
-          style === 'electronic' ? 'シンセサイザーに適した' : 
-          'ロック調でエネルギッシュな'}メロディーにする
-      - ${mood === 'happy' ? '明るく躍動感のある' :
-          mood === 'sad' ? '物悲しく情感豊かな' :
-          mood === 'energetic' ? 'エネルギッシュで力強い' :
-          mood === 'calm' ? '穏やかで安らぎのある' :
-          'ミステリアスで神秘的な'}表現にする
-      ${keywords ? `- 指定されたキーワード「${keywords}」の雰囲気や特徴を音楽に反映する` : ''}`;
+${length}小節分の完全なメロディーを生成してください。`;
     } else if (type === 'chords') {
-      prompt = `あなたは熟練した作曲家です。以下の条件で${style}なコード進行を作成してください：
+      prompt = `${length}小節の${style}コード進行を${key} ${scale}スケールで作成してください。
 
-      【基本設定】
-      - 調性: ${key} ${scale}スケール
-      - 小節数: ${length}小節
-      - スタイル: ${style}
-      ${keywords ? `- キーワード: ${keywords}（この要素を反映してください）` : ''}
+JSON配列で返してください：
+[{"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6}]
 
-      【出力形式】
-      JSONの配列のみを返してください。ルート音のみ（トライアドの最低音）を指定：
-      [{"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6}]
-      
-      【重要な制約】
-      - 必ず${length}個のコードを生成してください（${length}小節分）
-      - 各コードは1小節（4拍）持続
-      - start位置: 0, 4, 8, 12, ..., ${(length - 1) * 4}
-      - 決して${length}個より少ないコード数にしないでください
-      
-      【JSON形式の例】
-      正確に${length}個のコードオブジェクトを含む配列
+条件:
+- ${length}個のコード（各コード1小節=4拍）
+- start位置: 0, 4, 8, 12...（4の倍数）
+- octave: 3
+- duration: 4
+- velocity: 0.5-0.8
+${keywords ? `- ${keywords}の要素を含む` : ''}
 
-      【音楽的指示】
-      - 各コードは1小節（4拍）持続、duration: 4を使用
-      - start位置: ${Array.from({length}, (_, i) => `${i + 1}小節目=${i * 4}`).join(', ')}
-      - ルート音は3オクターブで指定
-      - ${style === 'pop' ? 'I-V-vi-IV、vi-IV-I-V等のポップス定番進行' :
-          style === 'jazz' ? 'ii-V-I、I-vi-ii-V等のジャズ定番進行' :
-          style === 'classical' ? 'I-IV-V-I等のクラシカル進行' :
-          style === 'electronic' ? 'シンプルで効果的な進行' :
-          'パワフルなロック進行'}を使用
-      - コード進行は音楽的に自然で流れるようにする
-      - ベロシティは0.5から0.8の範囲で設定
-      ${keywords ? `- 指定されたキーワード「${keywords}」に適したコード進行にする` : ''}`;
+${length}個のコードで完全な進行を作成してください。`;
     } else if (type === 'drums') {
-      prompt = `あなたは熟練したドラマーです。以下の条件でドラムパターンを作成してください：
+      prompt = `${style}スタイルの${complexity}なドラムパターンを作成してください。
 
-      【基本設定】
-      - スタイル: ${style}
-      - テンポ: ${tempo} BPM  
-      - 複雑さ: ${complexity}
-      - 小節数: ${length}小節
-      ${keywords ? `- キーワード: ${keywords}（この要素を反映してください）` : ''}
+JSONオブジェクトで返してください：
+{"steps": [{"kick": true, "snare": false, "hihat": true, "openhat": false, "crash": false, "velocity": 0.8}], "length": ${length}}
 
-      【出力形式】
-      JSONオブジェクトのみを返してください。説明は不要です。
-      {"steps": [{"kick": true, "snare": false, "hihat": true, "openhat": false, "crash": false, "velocity": 0.8}], "length": ${length}}
+条件:
+- 16ステップの配列
+- kick, snare, hihat, openhat, crash (true/false)
+- velocity: 0.3-1.0
+- ${style}の特徴を反映
+${keywords ? `- ${keywords}の雰囲気を含む` : ''}
 
-      【ドラムパターン指示】
-      - 16ステップ（16分音符）のパターンを作成
-      - kick: キックドラム、snare: スネアドラム、hihat: ハイハット、openhat: オープンハイハット、crash: クラッシュシンバル
-      - velocityは各楽器ごとに0.3から1.0の範囲で設定
-      - ${style === 'rock' ? '4つ打ちキック、2拍4拍スネア中心' :
-          style === 'pop' ? 'キャッチーで踊りやすいパターン' :
-          style === 'jazz' ? 'スウィング感のあるパターン' :
-          style === 'electronic' ? 'エレクトロニックで正確なパターン' :
-          style === 'funk' ? 'グルーヴィーでシンコペーション多用' :
-          'ラテンのリズムパターン'}を基調とする
-      - ${complexity === 'simple' ? 'シンプルで覚えやすい' :
-          complexity === 'medium' ? '適度な変化とフィル' :
-          '複雑で技巧的な'}パターンにする
-      ${keywords ? `- 指定されたキーワード「${keywords}」の雰囲気を反映したリズムパターンにする` : ''}`;
+16ステップの完全なパターンを作成してください。`;
     } else {
       throw new Error(`Unsupported generation type: ${type}`);
     }
@@ -162,7 +98,7 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'system',
-          content: 'あなたは経験豊富なプロの作曲家です。指定された小節数分の完全な楽曲を必ず生成してください。重要：ユーザーが16小節を指定した場合は16小節分、8小節なら8小節分の音楽を作成し、短縮しないでください。出力は必ずJSON形式のみで、説明文は一切含めないでください。'
+          content: '音楽データをJSON形式で生成してください。説明は不要で、JSONのみ返してください。指定された小節数分の完全な音楽を作成してください。'
         },
         {
           role: 'user',
