@@ -88,30 +88,50 @@ export async function POST(request: NextRequest) {
         return examples.slice(0, 4);
       };
       
-      prompt = `${style}スタイルの${mood}なメロディーを${length}小節分生成してください。
+      // Build prompt with keyword emphasis
+      let keywordSection = '';
+      if (keywords && keywords.trim()) {
+        keywordSection = `
 
-【基本要件】:
+【最重要 - キーワードテーマ】: "${keywords}"
+このキーワードを音楽的に表現することが最優先です。
+- キーワードの感情やイメージを音程、リズム、強弱で表現
+- キーワードに適した音域や音色を選択
+- キーワードが持つエネルギーレベルを反映
+- 単語の音韻やリズムを音符のパターンに反映`;
+      }
+      
+      prompt = `"${keywords || (style + ' ' + mood)}"をテーマにした${length}小節のメロディーを生成してください。${keywordSection}
+
+【基本仕様】:
 - 総時間: ${length * 4}拍分
-- 調: ${key} ${scale}スケール
+- 調: ${key} ${scale}スケール  
 - オクターブ: 3-5の範囲
-- デュレーション: 0.25-4.0の範囲（4分音符基準）
+- デュレーション: 0.25-4.0の範囲
 - ベロシティ: 0.4-1.0の範囲
 
-【スタイル特性を活かして】:
-${style === 'jazz' ? '- シンコペーション、7th音程、スウィング感' : 
-  style === 'electronic' ? '- 短い音符、高い音域、アクセント' :
-  style === 'classical' ? '- 長い音符、滑らかな進行、表現豊か' :
-  style === 'rock' ? '- パワフル、リズミカル、中音域中心' :
-  '- キャッチーなメロディ、覚えやすいフレーズ'}
+【${keywords ? 'キーワード主導' : 'スタイル'}での表現】:
+${keywords ? 
+  `"${keywords}"の持つ特性を以下で表現:
+- 音の高低: キーワードの明暗・軽重を音域で表現
+- リズム: キーワードの語感・テンポを音符の長さで表現  
+- 強弱: キーワードの強さ・柔らかさをベロシティで表現
+- 音程関係: キーワードの調和性・対立性を音程間隔で表現` :
+  
+  (style === 'jazz' ? '- シンコペーション、7th音程、スウィング感' : 
+   style === 'electronic' ? '- 短い音符、高い音域、アクセント' :
+   style === 'classical' ? '- 長い音符、滑らかな進行、表現豊か' :
+   style === 'rock' ? '- パワフル、リズミカル、中音域中心' :
+   '- キャッチーなメロディ、覚えやすいフレーズ')}
 
-【ムード表現】:
-${mood === 'happy' ? '明るく跳ねるような音程配置' :
-  mood === 'sad' ? '下降気味、マイナー寄りの音程' :
-  mood === 'energetic' ? '急速な音符変化、高音域活用' :
-  mood === 'calm' ? 'ゆったりとした長めの音符' :
-  '神秘的な音程関係、予想外の展開'}
-
-${keywords ? `追加要素: ${keywords}` : ''}
+【${keywords ? 'キーワード重視' : 'ムード'}表現】:
+${keywords ? 
+  `"${keywords}"から連想される感情・雰囲気を音楽的に具現化` :
+  (mood === 'happy' ? '明るく跳ねるような音程配置' :
+   mood === 'sad' ? '下降気味、マイナー寄りの音程' :
+   mood === 'energetic' ? '急速な音符変化、高音域活用' :
+   mood === 'calm' ? 'ゆったりとした長めの音符' :
+   '神秘的な音程関係、予想外の展開')}
 
 【出力形式】: JSON配列のみ（例: [${getMelodicExamples().slice(0, 2).join(', ')}]）`;
     } else if (type === 'chords') {
@@ -123,47 +143,78 @@ ${keywords ? `追加要素: ${keywords}` : ''}
         chordExamples.push(`{"note": "${chordNote}", "octave": 3, "start": ${i * 4}, "duration": 4, "velocity": 0.7}`);
       }
       
-      prompt = `正確に${length}個のコード進行を生成してください。
+      // Build chord prompt with keyword emphasis
+      let chordKeywordSection = '';
+      if (keywords && keywords.trim()) {
+        chordKeywordSection = `
 
-【厳格な条件 - 必ず守る】:
-1. コード数: 正確に${length}個
-2. start値: ${Array.from({length}, (_, i) => i * 4).join(', ')}
-3. 調: ${key} ${scale}の和音のみ
-4. octave: 3のみ
-5. duration: 4のみ
-6. velocity: 0.6-0.8の範囲
+【最重要 - キーワードテーマ】: "${keywords}"  
+このキーワードをコード進行で表現することが最優先です。
+- キーワードの感情的な起伏をコード変化で表現
+- キーワードの持つ緊張感・安定感をコード選択に反映
+- キーワードのダイナミクスをベロシティ変化で表現`;
+      }
+      
+      prompt = `"${keywords || (style + ' ' + mood)}"をテーマにした${length}個のコード進行を生成してください。${chordKeywordSection}
 
-【出力形式】:
-[${chordExamples.join(', ')}]
+【基本仕様】:
+- コード数: ${length}個
+- start値: ${Array.from({length}, (_, i) => i * 4).join(', ')}
+- 調: ${key} ${scale}スケールのコード
+- オクターブ: 3
+- デュレーション: 4
+- ベロシティ: 0.5-0.9の範囲
 
-【禁止事項】:
-- 説明文やコメントの追加
-- 指定以外のstart値
-- ${length}個以外のコード数
-- duration 4以外の値
+【${keywords ? 'キーワード主導' : 'スタイル'}コード選択】:
+${keywords ? 
+  `"${keywords}"の特性をコード進行で表現:
+- 明暗: メジャー/マイナーコードの選択
+- 緊張感: 不安定なコード（dim, sus）の使用
+- エネルギー: ベロシティとコード密度で調整
+- 流れ: キーワードの語感に合う進行を構築` :
+  
+  `${style}スタイルの特徴的なコード進行パターン`}
 
-${style}スタイルで作成してください。${keywords ? `キーワード: ${keywords}` : ''}`;
+【出力形式】: JSON配列のみ（例: [${chordExamples.slice(0, 2).join(', ')}]）
+
+${keywords ? `"${keywords}"の感情的な意味を最優先にコード進行を構築してください。` : ''}`;
     } else if (type === 'drums') {
       const exampleStep = `{"kick": true, "snare": false, "hihat": true, "openhat": false, "crash": false, "velocity": 0.8}`;
       
-      prompt = `ドラムパターンを生成してください。
+      // Build drum prompt with keyword emphasis
+      let drumKeywordSection = '';
+      if (keywords && keywords.trim()) {
+        drumKeywordSection = `
 
-【厳格な条件 - 必ず守る】:
-1. 正確に16個のstepsを持つ配列
-2. 各stepは必須プロパティ: kick, snare, hihat, openhat, crash (true/false), velocity (数値)
-3. velocity: 0.5-1.0の範囲のみ
-4. lengthプロパティ: ${length}
+【最重要 - キーワードテーマ】: "${keywords}"
+このキーワードをドラムパターンで表現することが最優先です。
+- キーワードのリズム感・躍動感をキック・スネアパターンで表現
+- キーワードの密度・エネルギーをハイハットの刻みで表現
+- キーワードの強弱・アクセントをベロシティ変化で表現
+- キーワードの音韻・語感をドラムパターンのグルーヴで表現`;
+      }
+      
+      prompt = `"${keywords || (style + ' ' + mood)}"をテーマにしたドラムパターンを生成してください。${drumKeywordSection}
 
-【出力形式】:
-{"steps": [${exampleStep}, ${exampleStep}, ...（16個）], "length": ${length}}
+【基本仕様】:
+- 16個のstepsを持つ配列
+- 各step: kick, snare, hihat, openhat, crash (true/false), velocity (数値)
+- velocity: 0.3-1.0の範囲
+- lengthプロパティ: ${length}
 
-【禁止事項】:
-- 説明文やコメントの追加
-- 16個以外のsteps数
-- 必須プロパティの欠落
-- 範囲外のvelocity値
+【${keywords ? 'キーワード主導' : 'スタイル'}パターン】:
+${keywords ? 
+  `"${keywords}"の特性をドラムで表現:
+- リズム感: キーワードの語呂やテンポ感をキックパターンで
+- 緊張感: キーワードの緊迫度をスネアの配置で
+- エネルギー: キーワードの勢いをハイハットの密度で
+- 表情: キーワードの感情をベロシティとアクセントで` :
+  
+  `${style}スタイルの${complexity}レベルの特徴的なパターン`}
 
-${style}スタイルの${complexity}レベルで作成してください。${keywords ? `キーワード: ${keywords}` : ''}`;
+【出力形式】: {"steps": [...], "length": ${length}} の形式のJSONのみ
+
+${keywords ? `"${keywords}"の持つリズム・エネルギーを最優先に反映してください。` : ''}`;
     } else {
       throw new Error(`Unsupported generation type: ${type}`);
     }
@@ -176,23 +227,25 @@ ${style}スタイルの${complexity}レベルで作成してください。${key
       messages: [
         {
           role: 'system',
-          content: `あなたは創造性豊かな音楽生成AIです。多様で魅力的な音楽を作成します。
+          content: `あなたは感情豊かな音楽生成AIです。キーワードから音楽的表現を創造します。
+
+【最優先事項】:
+キーワードが提供された場合、そのキーワードの意味・感情・イメージを音楽的に具現化することが最重要です。
+
+【キーワード解釈指針】:
+- 単語の持つ感情的な色彩を音程・和音で表現
+- 語感やリズム感を音符の配置・長さで表現
+- エネルギーレベルをベロシティ・音域で表現
+- 言葉の持つ動きや流れを音楽の進行で表現
 
 【出力ルール】:
 1. JSON形式のみ出力（説明文禁止）
-2. 各音符: {"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}
-3. スタイルとムードを活かした独創的なメロディー
-4. 音符の配置、長さ、強さに変化をつける
-5. 同じパターンの繰り返しを避ける
+2. キーワードの本質を音楽的に翻訳
+3. 毎回キーワードへの新しい解釈で生成
+4. 同じキーワードでも異なる音楽的アプローチを採用
+5. キーワードがない場合はスタイル・ムードを重視
 
-【創造性のポイント】:
-- リズムバリエーション（様々なduration）
-- 音域の変化（octave 3-5）
-- 強弱の表現（velocity 0.4-1.0）
-- スタイル固有の特徴を反映
-- ムードに適した音程関係
-
-毎回新しく、印象的なメロディーを生成してください。`
+キーワードの魂を音楽に宿してください。`
         },
         {
           role: 'user',
