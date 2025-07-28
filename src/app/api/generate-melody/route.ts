@@ -40,39 +40,80 @@ export async function POST(request: NextRequest) {
       apiKey: openaiApiKey,
     });
 
+    // Helper function to get scale notes
+    const getScaleNotes = (key: string, scale: string) => {
+      const noteMap: { [key: string]: number } = {
+        'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
+        'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+      };
+      const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      const rootIndex = noteMap[key] || 0;
+      
+      let intervals: number[];
+      if (scale === 'minor') {
+        intervals = [0, 2, 3, 5, 7, 8, 10]; // Natural minor
+      } else if (scale === 'pentatonic') {
+        intervals = [0, 2, 4, 7, 9]; // Major pentatonic
+      } else if (scale === 'blues') {
+        intervals = [0, 3, 5, 6, 7, 10]; // Blues scale
+      } else {
+        intervals = [0, 2, 4, 5, 7, 9, 11]; // Major scale
+      }
+      
+      return intervals.map(interval => noteNames[(rootIndex + interval) % 12]);
+    };
+
     let prompt: string;
     
     if (type === 'melody') {
-      // Generate exact examples for each measure
-      const exactExamples = [];
-      for (let i = 0; i < Math.min(length, 4); i++) {
-        const measureStart = i * 4;
-        exactExamples.push(`{"note": "C", "octave": 4, "start": ${measureStart}, "duration": 1, "velocity": 0.8}`);
-        exactExamples.push(`{"note": "E", "octave": 4, "start": ${measureStart + 1}, "duration": 1, "velocity": 0.7}`);
-        exactExamples.push(`{"note": "G", "octave": 4, "start": ${measureStart + 2}, "duration": 1, "velocity": 0.8}`);
-        exactExamples.push(`{"note": "C", "octave": 5, "start": ${measureStart + 3}, "duration": 1, "velocity": 0.7}`);
-      }
+      // Generate varied melodic examples based on style and mood
+      const getMelodicExamples = () => {
+        const scaleNotes = getScaleNotes(key, scale);
+        const examples = [];
+        
+        // Create different melodic patterns based on style
+        if (style === 'jazz') {
+          examples.push(`{"note": "${scaleNotes[6] || scaleNotes[0]}", "octave": 4, "start": 0, "duration": 0.5, "velocity": 0.7}`);
+          examples.push(`{"note": "${scaleNotes[0]}", "octave": 4, "start": 0.5, "duration": 1.5, "velocity": 0.8}`);
+        } else if (style === 'electronic') {
+          examples.push(`{"note": "${scaleNotes[0]}", "octave": 5, "start": 0, "duration": 0.25, "velocity": 0.9}`);
+          examples.push(`{"note": "${scaleNotes[2] || scaleNotes[1]}", "octave": 5, "start": 0.25, "duration": 0.25, "velocity": 0.8}`);
+        } else if (style === 'classical') {
+          examples.push(`{"note": "${scaleNotes[0]}", "octave": 4, "start": 0, "duration": 2, "velocity": 0.6}`);
+          examples.push(`{"note": "${scaleNotes[1] || scaleNotes[0]}", "octave": 4, "start": 2, "duration": 1, "velocity": 0.7}`);
+        } else {
+          examples.push(`{"note": "${scaleNotes[0]}", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}`);
+          examples.push(`{"note": "${scaleNotes[2] || scaleNotes[1] || scaleNotes[0]}", "octave": 4, "start": 1, "duration": 1, "velocity": 0.7}`);
+        }
+        return examples.slice(0, 4);
+      };
       
-      prompt = `正確に${length}小節のメロディーを生成してください。
+      prompt = `${style}スタイルの${mood}なメロディーを${length}小節分生成してください。
 
-【厳格な条件 - 必ず守る】:
-1. 音符数: 正確に${length * 4}個
-2. start値: 0, 1, 2, 3, ..., ${length * 4 - 1} を順番に使用
-3. 調: ${key} ${scale}スケールの音のみ使用
-4. octave: 3, 4, 5のみ
-5. duration: 1.0のみ（4分音符）
-6. velocity: 0.6-0.9の範囲
+【基本要件】:
+- 総時間: ${length * 4}拍分
+- 調: ${key} ${scale}スケール
+- オクターブ: 3-5の範囲
+- デュレーション: 0.25-4.0の範囲（4分音符基準）
+- ベロシティ: 0.4-1.0の範囲
 
-【出力形式】:
-[${exactExamples.slice(0, 8).join(', ')}]
+【スタイル特性を活かして】:
+${style === 'jazz' ? '- シンコペーション、7th音程、スウィング感' : 
+  style === 'electronic' ? '- 短い音符、高い音域、アクセント' :
+  style === 'classical' ? '- 長い音符、滑らかな進行、表現豊か' :
+  style === 'rock' ? '- パワフル、リズミカル、中音域中心' :
+  '- キャッチーなメロディ、覚えやすいフレーズ'}
 
-【禁止事項】:
-- 説明文やコメントの追加
-- 範囲外のstart値
-- ${length * 4}個以外の音符数
-- duration以外の値
+【ムード表現】:
+${mood === 'happy' ? '明るく跳ねるような音程配置' :
+  mood === 'sad' ? '下降気味、マイナー寄りの音程' :
+  mood === 'energetic' ? '急速な音符変化、高音域活用' :
+  mood === 'calm' ? 'ゆったりとした長めの音符' :
+  '神秘的な音程関係、予想外の展開'}
 
-${mood}で${style}な雰囲気で作成してください。${keywords ? `キーワード: ${keywords}` : ''}`;
+${keywords ? `追加要素: ${keywords}` : ''}
+
+【出力形式】: JSON配列のみ（例: [${getMelodicExamples().slice(0, 2).join(', ')}]）`;
     } else if (type === 'chords') {
       // Generate exact chord examples
       const chordExamples = [];
@@ -135,29 +176,31 @@ ${style}スタイルの${complexity}レベルで作成してください。${key
       messages: [
         {
           role: 'system',
-          content: `あなたは厳密な仕様に従う音楽生成AIです。
+          content: `あなたは創造性豊かな音楽生成AIです。多様で魅力的な音楽を作成します。
 
-【絶対遵守事項】:
-1. JSON形式のみ出力（説明文、コメント、マークダウン記法は一切禁止）
-2. 指定された数値（音符数、コード数、ステップ数）を必ず守る
-3. start値は指定範囲内のみ使用
-4. 全ての必須プロパティを含める
-5. 値の範囲を厳密に守る
+【出力ルール】:
+1. JSON形式のみ出力（説明文禁止）
+2. 各音符: {"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}
+3. スタイルとムードを活かした独創的なメロディー
+4. 音符の配置、長さ、強さに変化をつける
+5. 同じパターンの繰り返しを避ける
 
-【出力形式検証】:
-- メロディー: 配列形式、指定音符数
-- コード: 配列形式、指定コード数  
-- ドラム: オブジェクト形式、16ステップ配列
+【創造性のポイント】:
+- リズムバリエーション（様々なduration）
+- 音域の変化（octave 3-5）
+- 強弱の表現（velocity 0.4-1.0）
+- スタイル固有の特徴を反映
+- ムードに適した音程関係
 
-仕様違反は即座に失敗となります。正確性を最優先してください。`
+毎回新しく、印象的なメロディーを生成してください。`
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      temperature: 0.3,
-      max_tokens: Math.max(2000, length * 150) // More tokens for strict formatting
+      temperature: 0.8, // Increased for more creative variation
+      max_tokens: Math.max(2000, length * 150)
     });
     
     console.log('ChatGPT response received:', response.choices[0]?.message?.content);
