@@ -199,15 +199,16 @@ ${keywords ? `- ${keywords}の雰囲気を含む` : ''}
     console.error('Error generating melody:', error);
     console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
     
-    if (requestType === 'drums') {
-      // Return fallback drum pattern on error
-      const fallbackPattern = generateFallbackDrumPattern(4);
-      return NextResponse.json({ pattern: fallbackPattern });
-    } else {
-      // Return fallback melody on error
-      const fallbackNotes = generateFallbackMelody(4);
-      return NextResponse.json({ notes: fallbackNotes });
-    }
+    // Return error response instead of fallback
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return NextResponse.json(
+      { 
+        error: true,
+        message: errorMessage,
+        type: requestType
+      },
+      { status: 500 }
+    );
   }
 }
 

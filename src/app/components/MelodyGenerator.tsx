@@ -13,6 +13,7 @@ interface MelodyGeneratorComponentProps {
 
 export default function MelodyGeneratorComponent({ onMelodyGenerated, onDrumPatternGenerated, onClose, trackType = 'synth' }: MelodyGeneratorComponentProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const [params, setParams] = useState<MelodyGenerationParams>({
     key: 'C',
     scale: 'major',
@@ -35,10 +36,12 @@ export default function MelodyGeneratorComponent({ onMelodyGenerated, onDrumPatt
 
   const handleGenerate = async (type: 'melody' | 'chords' | 'drums') => {
     setIsGenerating(true);
+    setErrorMessage(''); // Clear previous error
+    
     try {
       if (type === 'drums') {
         if (!onDrumPatternGenerated) {
-          alert('ドラムパターン生成がサポートされていません。');
+          setErrorMessage('ドラムパターン生成がサポートされていません。');
           return;
         }
         const pattern = await melodyGenerator.generateDrumPattern(drumParams);
@@ -54,7 +57,8 @@ export default function MelodyGeneratorComponent({ onMelodyGenerated, onDrumPatt
       }
     } catch (error) {
       console.error('Failed to generate:', error);
-      alert(`${type === 'drums' ? 'ドラムパターン' : 'メロディー'}の生成に失敗しました。APIキーを確認してください。`);
+      const errorMsg = error instanceof Error ? error.message : '不明なエラーが発生しました';
+      setErrorMessage(`${type === 'drums' ? 'ドラムパターン' : type === 'melody' ? 'メロディー' : 'コード進行'}の生成に失敗しました: ${errorMsg}`);
     } finally {
       setIsGenerating(false);
     }
@@ -312,6 +316,12 @@ export default function MelodyGeneratorComponent({ onMelodyGenerated, onDrumPatt
           </>
         )}
       </div>
+
+      {errorMessage && (
+        <div className="mt-4 p-3 bg-red-900/50 border border-red-600 rounded-lg">
+          <p className="text-red-200 text-sm">{errorMessage}</p>
+        </div>
+      )}
 
       <div className="mt-4 text-sm text-gray-400">
         {trackType === 'drum' ? (
