@@ -57,23 +57,22 @@ export async function POST(request: NextRequest) {
       JSONの配列のみを返してください。説明は不要です。
       [{"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}]
       
-      例：4小節のメロディー
-      [
-        {"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8},
-        {"note": "D", "octave": 4, "start": 1, "duration": 0.5, "velocity": 0.7},
-        {"note": "E", "octave": 4, "start": 1.5, "duration": 0.5, "velocity": 0.7},
-        {"note": "F", "octave": 4, "start": 2, "duration": 2, "velocity": 0.9},
-        {"note": "G", "octave": 4, "start": 4, "duration": 1, "velocity": 0.8}
-      ]
+      例：${length}小節のメロディー（start範囲: 0-${length * 4 - 1}）
+      - 各小節には必ず音符を配置
+      - 小節間のバランスを考慮して音符を分散配置
+      - 最後の音符のstart + durationが${length * 4}を超えないように注意
 
       【音楽的指示】
       - メロディーラインは歌いやすく覚えやすいものにする
       - 音域は3オクターブから5オクターブまで（octave: 3-5）
       - リズムは4分音符(duration: 1.0)、8分音符(duration: 0.5)、2分音符(duration: 2.0)を組み合わせる
       - startは4分音符を基準とした位置（0から${length * 4 - 1}まで）
-      - 1小節目: start 0-3、2小節目: start 4-7、3小節目: start 8-11、4小節目: start 12-15
+      - 小節の区切り: ${Array.from({length}, (_, i) => `${i + 1}小節目: start ${i * 4}-${i * 4 + 3}`).join('、')}
       - ベロシティは0.4から1.0の範囲で、表現豊かに設定
-      - 全体で${length}小節（${length * 4}拍）の楽曲を作成
+      - 全体で${length}小節（${length * 4}拍分の4分音符）の楽曲を作成
+      - 必ず${length}小節すべてに音符を配置してください
+      - 重要：${length}小節分の音楽を作ってください（短く終わらせないで）
+      - 音符の総数は${length}小節に応じて適切に増やしてください
       - ${style === 'pop' ? 'キャッチーで親しみやすい' : 
           style === 'jazz' ? 'シンコペーションやブルーノートを含む' :
           style === 'classical' ? 'クラシカルで上品な' :
@@ -98,17 +97,14 @@ export async function POST(request: NextRequest) {
       JSONの配列のみを返してください。ルート音のみ（トライアドの最低音）を指定：
       [{"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6}]
       
-      例：4小節のコード進行（C-Am-F-G）
-      [
-        {"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6},
-        {"note": "A", "octave": 3, "start": 4, "duration": 4, "velocity": 0.6},
-        {"note": "F", "octave": 3, "start": 8, "duration": 4, "velocity": 0.6},
-        {"note": "G", "octave": 3, "start": 12, "duration": 4, "velocity": 0.6}
-      ]
+      例：${length}小節のコード進行
+      - 必ず${length}個のコードを生成（各コードは1小節＝4拍）
+      - start位置は0, 4, 8, 12...のように4の倍数で指定
+      - 最後のコードのstartは${(length - 1) * 4}になる
 
       【音楽的指示】
       - 各コードは1小節（4拍）持続、duration: 4を使用
-      - start位置: 1小節目=0, 2小節目=4, 3小節目=8, 4小節目=12
+      - start位置: ${Array.from({length}, (_, i) => `${i + 1}小節目=${i * 4}`).join(', ')}
       - ルート音は3オクターブで指定
       - ${style === 'pop' ? 'I-V-vi-IV、vi-IV-I-V等のポップス定番進行' :
           style === 'jazz' ? 'ii-V-I、I-vi-ii-V等のジャズ定番進行' :
