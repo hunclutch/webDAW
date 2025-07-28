@@ -43,35 +43,49 @@ export async function POST(request: NextRequest) {
     let prompt: string;
     
     if (type === 'melody') {
-      prompt = `${length}小節の${style}メロディーを${key} ${scale}スケールで作成してください。
+      // Generate specific examples based on length
+      const exampleStart = length === 1 ? '0, 1, 2, 3' : 
+                           length === 2 ? '0, 1, 2, 3, 4, 5, 6, 7' :
+                           length === 4 ? '0, 2, 4, 6, 8, 10, 12, 14' :
+                           `0から${length * 4 - 1}の範囲`;
+      
+      prompt = `${length}小節の${style}メロディーを作成してください。
 
-JSON配列で返してください：
-[{"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}]
+必須条件:
+- 調: ${key} ${scale}
+- 小節数: ${length}小節（合計${length * 4}拍）
+- start値: 0から${length * 4 - 1}まで使用（例: ${exampleStart}）
+- 各小節に最低1個の音符を配置
+- 音符総数: ${Math.max(length * 2, 4)}個以上
 
-条件:
-- ${length}小節 = ${length * 4}拍（start: 0-${length * 4 - 1}）
-- 各小節に音符を配置
+JSON配列で出力:
+[{"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}, {"note": "D", "octave": 4, "start": 1, "duration": 1, "velocity": 0.7}]
+
+音楽設定:
 - octave: 3-5
-- duration: 4分音符=1.0, 8分音符=0.5, 2分音符=2.0
+- duration: 1.0(4分音符), 0.5(8分音符), 2.0(2分音符)
 - velocity: 0.4-1.0
-- ${mood}な雰囲気${keywords ? `、${keywords}の要素を含む` : ''}
-
-${length}小節分の完全なメロディーを生成してください。`;
+- ${mood}な${style}スタイル${keywords ? `（${keywords}要素含む）` : ''}`;
     } else if (type === 'chords') {
-      prompt = `${length}小節の${style}コード進行を${key} ${scale}スケールで作成してください。
+      // Generate example start positions
+      const startPositions = Array.from({length}, (_, i) => i * 4).join(', ');
+      
+      prompt = `${length}小節の${style}コード進行を作成してください。
 
-JSON配列で返してください：
-[{"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6}]
+必須条件:
+- 調: ${key} ${scale}
+- コード数: 正確に${length}個
+- start位置: ${startPositions}（各コード4拍間隔）
+- 各コードduration: 4
 
-条件:
-- ${length}個のコード（各コード1小節=4拍）
-- start位置: 0, 4, 8, 12...（4の倍数）
+JSON配列で出力:
+[{"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6}, {"note": "F", "octave": 3, "start": 4, "duration": 4, "velocity": 0.6}]
+
+音楽設定:
 - octave: 3
-- duration: 4
+- duration: 4（固定）
 - velocity: 0.5-0.8
-${keywords ? `- ${keywords}の要素を含む` : ''}
-
-${length}個のコードで完全な進行を作成してください。`;
+- ${style}スタイル${keywords ? `（${keywords}要素含む）` : ''}`;
     } else if (type === 'drums') {
       prompt = `${style}スタイルの${complexity}なドラムパターンを作成してください。
 
@@ -98,7 +112,13 @@ ${keywords ? `- ${keywords}の雰囲気を含む` : ''}
       messages: [
         {
           role: 'system',
-          content: '音楽データをJSON形式で生成してください。説明は不要で、JSONのみ返してください。指定された小節数分の完全な音楽を作成してください。'
+          content: `あなたは音楽生成AIです。指定された条件に従って正確にJSON形式で音楽データを生成してください。
+
+重要な指示:
+- JSON形式のみを返す（説明文不要）
+- 指定された小節数分の音楽を完全に生成
+- start値の範囲を厳密に守る
+- 音符数の最小要件を満たす`
         },
         {
           role: 'user',
