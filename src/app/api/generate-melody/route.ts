@@ -43,63 +43,86 @@ export async function POST(request: NextRequest) {
     let prompt: string;
     
     if (type === 'melody') {
-      // Generate specific examples based on length
-      const exampleStart = length === 1 ? '0, 1, 2, 3' : 
-                           length === 2 ? '0, 1, 2, 3, 4, 5, 6, 7' :
-                           length === 4 ? '0, 2, 4, 6, 8, 10, 12, 14' :
-                           `0から${length * 4 - 1}の範囲`;
+      // Generate exact examples for each measure
+      const exactExamples = [];
+      for (let i = 0; i < Math.min(length, 4); i++) {
+        const measureStart = i * 4;
+        exactExamples.push(`{"note": "C", "octave": 4, "start": ${measureStart}, "duration": 1, "velocity": 0.8}`);
+        exactExamples.push(`{"note": "E", "octave": 4, "start": ${measureStart + 1}, "duration": 1, "velocity": 0.7}`);
+        exactExamples.push(`{"note": "G", "octave": 4, "start": ${measureStart + 2}, "duration": 1, "velocity": 0.8}`);
+        exactExamples.push(`{"note": "C", "octave": 5, "start": ${measureStart + 3}, "duration": 1, "velocity": 0.7}`);
+      }
       
-      prompt = `${length}小節の${style}メロディーを作成してください。
+      prompt = `正確に${length}小節のメロディーを生成してください。
 
-必須条件:
-- 調: ${key} ${scale}
-- 小節数: ${length}小節（合計${length * 4}拍）
-- start値: 0から${length * 4 - 1}まで使用（例: ${exampleStart}）
-- 各小節に最低1個の音符を配置
-- 音符総数: ${Math.max(length * 2, 4)}個以上
+【厳格な条件 - 必ず守る】:
+1. 音符数: 正確に${length * 4}個
+2. start値: 0, 1, 2, 3, ..., ${length * 4 - 1} を順番に使用
+3. 調: ${key} ${scale}スケールの音のみ使用
+4. octave: 3, 4, 5のみ
+5. duration: 1.0のみ（4分音符）
+6. velocity: 0.6-0.9の範囲
 
-JSON配列で出力:
-[{"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}, {"note": "D", "octave": 4, "start": 1, "duration": 1, "velocity": 0.7}]
+【出力形式】:
+[${exactExamples.slice(0, 8).join(', ')}]
 
-音楽設定:
-- octave: 3-5
-- duration: 1.0(4分音符), 0.5(8分音符), 2.0(2分音符)
-- velocity: 0.4-1.0
-- ${mood}な${style}スタイル${keywords ? `（${keywords}要素含む）` : ''}`;
+【禁止事項】:
+- 説明文やコメントの追加
+- 範囲外のstart値
+- ${length * 4}個以外の音符数
+- duration以外の値
+
+${mood}で${style}な雰囲気で作成してください。${keywords ? `キーワード: ${keywords}` : ''}`;
     } else if (type === 'chords') {
-      // Generate example start positions
-      const startPositions = Array.from({length}, (_, i) => i * 4).join(', ');
+      // Generate exact chord examples
+      const chordExamples = [];
+      const basicChords = ['C', 'F', 'G', 'Am'];
+      for (let i = 0; i < Math.min(length, 4); i++) {
+        const chordNote = basicChords[i % basicChords.length];
+        chordExamples.push(`{"note": "${chordNote}", "octave": 3, "start": ${i * 4}, "duration": 4, "velocity": 0.7}`);
+      }
       
-      prompt = `${length}小節の${style}コード進行を作成してください。
+      prompt = `正確に${length}個のコード進行を生成してください。
 
-必須条件:
-- 調: ${key} ${scale}
-- コード数: 正確に${length}個
-- start位置: ${startPositions}（各コード4拍間隔）
-- 各コードduration: 4
+【厳格な条件 - 必ず守る】:
+1. コード数: 正確に${length}個
+2. start値: ${Array.from({length}, (_, i) => i * 4).join(', ')}
+3. 調: ${key} ${scale}の和音のみ
+4. octave: 3のみ
+5. duration: 4のみ
+6. velocity: 0.6-0.8の範囲
 
-JSON配列で出力:
-[{"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6}, {"note": "F", "octave": 3, "start": 4, "duration": 4, "velocity": 0.6}]
+【出力形式】:
+[${chordExamples.join(', ')}]
 
-音楽設定:
-- octave: 3
-- duration: 4（固定）
-- velocity: 0.5-0.8
-- ${style}スタイル${keywords ? `（${keywords}要素含む）` : ''}`;
+【禁止事項】:
+- 説明文やコメントの追加
+- 指定以外のstart値
+- ${length}個以外のコード数
+- duration 4以外の値
+
+${style}スタイルで作成してください。${keywords ? `キーワード: ${keywords}` : ''}`;
     } else if (type === 'drums') {
-      prompt = `${style}スタイルの${complexity}なドラムパターンを作成してください。
+      const exampleStep = `{"kick": true, "snare": false, "hihat": true, "openhat": false, "crash": false, "velocity": 0.8}`;
+      
+      prompt = `ドラムパターンを生成してください。
 
-JSONオブジェクトで返してください：
-{"steps": [{"kick": true, "snare": false, "hihat": true, "openhat": false, "crash": false, "velocity": 0.8}], "length": ${length}}
+【厳格な条件 - 必ず守る】:
+1. 正確に16個のstepsを持つ配列
+2. 各stepは必須プロパティ: kick, snare, hihat, openhat, crash (true/false), velocity (数値)
+3. velocity: 0.5-1.0の範囲のみ
+4. lengthプロパティ: ${length}
 
-条件:
-- 16ステップの配列
-- kick, snare, hihat, openhat, crash (true/false)
-- velocity: 0.3-1.0
-- ${style}の特徴を反映
-${keywords ? `- ${keywords}の雰囲気を含む` : ''}
+【出力形式】:
+{"steps": [${exampleStep}, ${exampleStep}, ...（16個）], "length": ${length}}
 
-16ステップの完全なパターンを作成してください。`;
+【禁止事項】:
+- 説明文やコメントの追加
+- 16個以外のsteps数
+- 必須プロパティの欠落
+- 範囲外のvelocity値
+
+${style}スタイルの${complexity}レベルで作成してください。${keywords ? `キーワード: ${keywords}` : ''}`;
     } else {
       throw new Error(`Unsupported generation type: ${type}`);
     }
@@ -112,21 +135,29 @@ ${keywords ? `- ${keywords}の雰囲気を含む` : ''}
       messages: [
         {
           role: 'system',
-          content: `あなたは音楽生成AIです。指定された条件に従って正確にJSON形式で音楽データを生成してください。
+          content: `あなたは厳密な仕様に従う音楽生成AIです。
 
-重要な指示:
-- JSON形式のみを返す（説明文不要）
-- 指定された小節数分の音楽を完全に生成
-- start値の範囲を厳密に守る
-- 音符数の最小要件を満たす`
+【絶対遵守事項】:
+1. JSON形式のみ出力（説明文、コメント、マークダウン記法は一切禁止）
+2. 指定された数値（音符数、コード数、ステップ数）を必ず守る
+3. start値は指定範囲内のみ使用
+4. 全ての必須プロパティを含める
+5. 値の範囲を厳密に守る
+
+【出力形式検証】:
+- メロディー: 配列形式、指定音符数
+- コード: 配列形式、指定コード数  
+- ドラム: オブジェクト形式、16ステップ配列
+
+仕様違反は即座に失敗となります。正確性を最優先してください。`
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      temperature: 0.8,
-      max_tokens: Math.max(1000, length * 100) // Dynamic token limit based on measure count
+      temperature: 0.3,
+      max_tokens: Math.max(2000, length * 150) // More tokens for strict formatting
     });
     
     console.log('ChatGPT response received:', response.choices[0]?.message?.content);
