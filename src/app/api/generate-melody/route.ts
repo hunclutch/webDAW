@@ -57,10 +57,14 @@ export async function POST(request: NextRequest) {
       JSONの配列のみを返してください。説明は不要です。
       [{"note": "C", "octave": 4, "start": 0, "duration": 1, "velocity": 0.8}]
       
-      例：${length}小節のメロディー（start範囲: 0-${length * 4 - 1}）
-      - 各小節には必ず音符を配置
-      - 小節間のバランスを考慮して音符を分散配置
-      - 最後の音符のstart + durationが${length * 4}を超えないように注意
+      【重要な制約】
+      - 必ず${length}小節分の音楽を生成してください
+      - start値の範囲: 0から${length * 4 - 1}まで使用
+      - 各小節に音符を配置し、空の小節を作らない
+      - 音符数の目安: 最低${length * 2}個以上の音符を生成
+      
+      【JSON形式の例】
+      start値が0-${length * 4 - 1}の範囲内で、${length}小節すべてに音符を配置
 
       【音楽的指示】
       - メロディーラインは歌いやすく覚えやすいものにする
@@ -97,10 +101,14 @@ export async function POST(request: NextRequest) {
       JSONの配列のみを返してください。ルート音のみ（トライアドの最低音）を指定：
       [{"note": "C", "octave": 3, "start": 0, "duration": 4, "velocity": 0.6}]
       
-      例：${length}小節のコード進行
-      - 必ず${length}個のコードを生成（各コードは1小節＝4拍）
-      - start位置は0, 4, 8, 12...のように4の倍数で指定
-      - 最後のコードのstartは${(length - 1) * 4}になる
+      【重要な制約】
+      - 必ず${length}個のコードを生成してください（${length}小節分）
+      - 各コードは1小節（4拍）持続
+      - start位置: 0, 4, 8, 12, ..., ${(length - 1) * 4}
+      - 決して${length}個より少ないコード数にしないでください
+      
+      【JSON形式の例】
+      正確に${length}個のコードオブジェクトを含む配列
 
       【音楽的指示】
       - 各コードは1小節（4拍）持続、duration: 4を使用
@@ -150,11 +158,11 @@ export async function POST(request: NextRequest) {
     console.log('Generated prompt:', prompt);
     
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: 'あなたは経験豊富なプロの作曲家です。音楽理論に精通しており、様々なジャンルのメロディーやコード進行を作成することができます。指定された条件に従って、音楽的に美しく実用的な楽曲を生成してください。出力は必ずJSON形式のみで、説明文は一切含めないでください。'
+          content: 'あなたは経験豊富なプロの作曲家です。指定された小節数分の完全な楽曲を必ず生成してください。重要：ユーザーが16小節を指定した場合は16小節分、8小節なら8小節分の音楽を作成し、短縮しないでください。出力は必ずJSON形式のみで、説明文は一切含めないでください。'
         },
         {
           role: 'user',
