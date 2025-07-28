@@ -104,6 +104,7 @@ export default function TrackCreator({ onCreateTrack }: TrackCreatorProps) {
     onCreateTrack(track);
   };
 
+
   return (
     <div className="bg-gray-800 rounded-lg p-6">
       <h2 className="text-xl font-semibold text-white mb-6">Create New Track</h2>
@@ -168,6 +169,7 @@ export default function TrackCreator({ onCreateTrack }: TrackCreatorProps) {
             </button>
           </div>
         </div>
+
       </div>
 
       <div className="mt-6 p-4 bg-gray-700 rounded-lg">

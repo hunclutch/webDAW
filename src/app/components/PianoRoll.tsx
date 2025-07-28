@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Note, DrumPattern } from '../types/audio';
 import BasslineGenerator from './BasslineGenerator';
+import MelodyGenerator from './MelodyGenerator';
 
 interface PianoRollProps {
   notes: Note[];
@@ -17,6 +18,7 @@ interface PianoRollProps {
   onClose?: () => void;
   onPlay?: () => void;
   onStop?: () => void;
+  onGenerateMelody?: (generatedNotes: Note[]) => void;
 }
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -48,6 +50,7 @@ export default function PianoRoll({
   trackType = 'synth',
   drumPattern,
   onClose,
+  onGenerateMelody,
   onPlay,
   onStop,
 }: PianoRollProps) {
@@ -68,6 +71,7 @@ export default function PianoRoll({
   const [lastPreviewTime, setLastPreviewTime] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(2); // デフォルトズームレベルインデックス
   const [showBassGenerator, setShowBassGenerator] = useState(false);
+  const [showMelodyGenerator, setShowMelodyGenerator] = useState(false);
   const gridWidth = measures * 16; // 小節数 × 16分音符（1小節 = 16ステップ）
 
   // ドラムパターンをノートに変換
@@ -500,6 +504,17 @@ export default function PianoRoll({
               )}
             </div>
           )}
+
+          {/* AI Melody Generator Button */}
+          {onGenerateMelody && (
+            <button
+              onClick={() => setShowMelodyGenerator(true)}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded font-medium transition-colors"
+              title="Generate AI Melody"
+            >
+              🤖 AI Melody
+            </button>
+          )}
           
           {onMeasuresChange && (
             <div className="flex items-center space-x-2">
@@ -774,15 +789,18 @@ export default function PianoRoll({
             })}
             
             {/* Notes */}
-            {displayNotes.map(note => {
+            {displayNotes.map((note, index) => {
               const x = stepToPosition(note.start);
               const y = noteToPosition(note.note, note.octave);
               const width = CELL_WIDTH * note.duration - 3;
               
               if (y === -1) return null;
               
+              // Ensure unique key by combining note.id with index and timestamp
+              const uniqueKey = `${note.id}-${index}-${note.start}-${note.note}${note.octave}`;
+              
               return (
-                <g key={note.id}>
+                <g key={uniqueKey}>
                   {/* メインノートボディ */}
                   <rect
                     x={x + 2}
@@ -878,6 +896,19 @@ export default function PianoRoll({
           <BasslineGenerator
             onGenerateBaseline={onNotesChange}
             measures={measures}
+          />
+        </div>
+      )}
+
+      {/* Melody Generator Modal */}
+      {showMelodyGenerator && onGenerateMelody && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <MelodyGenerator
+            onMelodyGenerated={(generatedNotes) => {
+              onGenerateMelody(generatedNotes);
+              setShowMelodyGenerator(false);
+            }}
+            onClose={() => setShowMelodyGenerator(false)}
           />
         </div>
       )}

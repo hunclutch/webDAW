@@ -1,6 +1,6 @@
 'use client';
 
-import { Track, Effect } from '../types/audio';
+import { Track, Effect, Note } from '../types/audio';
 import { Synthesizer } from './synthesizer';
 import { DrumMachine } from './drumMachine';
 import { Sequencer } from './sequencer';
@@ -66,6 +66,22 @@ export class AudioEngine {
     return this.sequencer.getIsPlaying();
   }
 
+  getIsRecording(): boolean {
+    return this.sequencer.getIsRecording();
+  }
+
+  startRecording(trackId: string) {
+    this.sequencer.startRecording(trackId);
+  }
+
+  stopRecording(): Note[] {
+    return this.sequencer.stopRecording();
+  }
+
+  recordNote(note: string, octave: number, velocity: number = 0.8) {
+    this.sequencer.recordNote(note, octave, velocity);
+  }
+
   getPlayheadPosition(): number {
     return this.sequencer.getPlayheadPosition();
   }
@@ -85,6 +101,7 @@ export class AudioEngine {
   getDrumMachine(): DrumMachine {
     return this.drumMachine;
   }
+
 
   getSequencer(): Sequencer {
     return this.sequencer;

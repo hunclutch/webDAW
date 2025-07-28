@@ -16,6 +16,8 @@ import { AudioExporter } from './lib/audioExporter';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import DrumPads from './components/DrumPads';
 import EffectRack from './components/EffectRack';
+import MelodyGenerator from './components/MelodyGenerator';
+import Settings from './components/Settings';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { useKeyboardPiano } from './hooks/useKeyboardPiano';
 
@@ -28,6 +30,8 @@ function HomeContent() {
   const [showTrackCreator, setShowTrackCreator] = useState(false);
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [showMelodyGenerator, setShowMelodyGenerator] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [projectName, setProjectName] = useState('Untitled Project');
   
   const initialDAWState: DAWState = {
@@ -102,6 +106,19 @@ function HomeContent() {
     return () => clearInterval(interval);
   }, [dawState, autoSave]);
 
+  // 録音状況を常に監視してUIを更新
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (audioEngine) {
+      interval = setInterval(() => {
+        setIsRecording(audioEngine.getIsRecording());
+      }, 100);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [audioEngine]);
+
   // 初回読み込み時に自動保存データを復元
   useEffect(() => {
     const autoSaveData = loadAutoSave();
@@ -171,6 +188,46 @@ function HomeContent() {
     audioEngine.play(dawState.tracks || []);
     setIsPlaying(true);
   }, [audioEngine, initAudio, dawState.tracks]);
+
+  const handleRecord = useCallback(async () => {
+    if (!audioEngine) {
+      await initAudio();
+      return;
+    }
+
+    if (isRecording) {
+      // 録音停止
+      const recordedNotes = audioEngine.stopRecording();
+      setIsRecording(false);
+
+      // 録音されたノートを選択中のトラックに追加
+      if (selectedTrackId && recordedNotes.length > 0) {
+        setDawState({
+          ...dawState,
+          tracks: (dawState.tracks || []).map(track => {
+            if (track.id === selectedTrackId) {
+              const existingNotes = track.notes || [];
+              return { ...track, notes: [...existingNotes, ...recordedNotes] };
+            }
+            return track;
+          }),
+        });
+      }
+    } else {
+      // 録音開始
+      if (selectedTrackId) {
+        const selectedTrack = dawState.tracks?.find(track => track.id === selectedTrackId);
+        if (selectedTrack && (selectedTrack.type === 'synth' || selectedTrack.type === 'bass')) {
+          audioEngine.startRecording(selectedTrackId);
+          setIsRecording(true);
+        } else {
+          alert('録音はシンセサイザーまたはベーストラックでのみ利用できます。対象のトラックを選択してください。');
+        }
+      } else {
+        alert('録音するトラックを選択してください。');
+      }
+    }
+  }, [audioEngine, initAudio, isRecording, selectedTrackId, dawState, setDawState]);
 
   const handlePause = useCallback(() => {
     if (audioEngine) {
@@ -326,6 +383,9 @@ function HomeContent() {
         // シンセ・ベーストラックの場合
         audioEngine.getSequencer().playNotePreview(note, octave);
       }
+    } else if (audioEngine) {
+      // トラックが選択されていない場合はデフォルトでシンセプレビュー
+      audioEngine.getSequencer().playNotePreview(note, octave);
     }
   }, [audioEngine, selectedTrackId, dawState.tracks]);
 
@@ -334,6 +394,9 @@ function HomeContent() {
       audioEngine.getSequencer().playDrumPreview(drumType);
     }
   }, [audioEngine]);
+
+
+
 
   const handleVolumeChange = useCallback((trackId: string, volume: number) => {
     setDawState({
@@ -402,6 +465,26 @@ function HomeContent() {
     });
   }, [dawState, setDawState]);
 
+  const handleMelodyGenerated = useCallback((generatedNotes: Note[]) => {
+    if (!selectedTrackId) {
+      alert('メロディーを追加するトラックを選択してください。');
+      return;
+    }
+
+    setDawState({
+      ...dawState,
+      tracks: (dawState.tracks || []).map(track => {
+        if (track.id === selectedTrackId) {
+          const existingNotes = track.notes || [];
+          return { ...track, notes: [...existingNotes, ...generatedNotes] };
+        }
+        return track;
+      }),
+    });
+    
+    setShowMelodyGenerator(false);
+  }, [selectedTrackId, dawState, setDawState]);
+
   const handleExportAudio = useCallback(async (format: 'wav' | 'mp3', filename: string, bitDepth: 16 | 24) => {
     if (!audioEngine) {
       alert('オーディオエンジンが初期化されていません。再生ボタンを押してから再度お試しください。');
@@ -424,6 +507,11 @@ function HomeContent() {
   useKeyboardPiano({
     onNotePlay: (note: string, octave: number) => {
       handleNotePreview(note, octave);
+      
+      // 録音中の場合、ノートを記録
+      if (audioEngine && audioEngine.getIsRecording()) {
+        audioEngine.recordNote(note, octave, 0.8);
+      }
     },
     enabled: true, // キーボード機能を常に有効にする
   });
@@ -539,11 +627,20 @@ function HomeContent() {
               onPlay={handlePlay}
               onPause={handlePause}
               onStop={handleStop}
-              onRecord={() => setIsRecording(!isRecording)}
+              onRecord={handleRecord}
               currentTime={currentTime}
               bpm={dawState.bpm}
               onBpmChange={handleBpmChange}
             />
+
+            {/* Settings Button */}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors"
+              title="設定"
+            >
+              ⚙️ 設定
+            </button>
           </div>
         </div>
       </div>
@@ -744,8 +841,17 @@ function HomeContent() {
                     ) : (
                       <>
                         {(selectedTrack.type === 'synth' || selectedTrack.type === 'bass') && (
-                          <div className="px-3 py-1 text-sm text-gray-400">
-                            {selectedTrack.name} - {selectedTrack.type === 'bass' ? 'Bass Generator' : 'Piano Roll'}
+                          <div className="flex items-center space-x-2">
+                            <div className="px-3 py-1 text-sm text-gray-400">
+                              {selectedTrack.name} - {selectedTrack.type === 'bass' ? 'Bass Generator' : 'Piano Roll'}
+                            </div>
+                            <button
+                              onClick={() => setShowMelodyGenerator(true)}
+                              className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded"
+                              title="Generate AI Melody"
+                            >
+                              🤖 AI
+                            </button>
                           </div>
                         )}
                         {selectedTrack.type === 'drum' && (
@@ -769,6 +875,13 @@ function HomeContent() {
                               }`}
                             >
                               Drum Pads
+                            </button>
+                            <button
+                              onClick={() => setShowMelodyGenerator(true)}
+                              className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded ml-2"
+                              title="Generate AI Melody"
+                            >
+                              🤖 AI
                             </button>
                           </>
                         )}
@@ -856,8 +969,10 @@ function HomeContent() {
                         onClose={() => setSelectedTrackId(null)}
                         onPlay={handlePlay}
                         onStop={handleStop}
+                        onGenerateMelody={handleMelodyGenerated}
                       />
                     )}
+
                     
                     {activeTab === 'drums' && selectedTrack.type === 'drum' && (
                       <DrumPads
@@ -942,6 +1057,16 @@ function HomeContent() {
         </div>
       )}
 
+      {/* Melody Generator Modal */}
+      {showMelodyGenerator && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <MelodyGenerator
+            onMelodyGenerated={handleMelodyGenerated}
+            onClose={() => setShowMelodyGenerator(false)}
+          />
+        </div>
+      )}
+
       {/* Export Modal */}
       <ExportModal
         isOpen={showExportModal}
@@ -950,6 +1075,13 @@ function HomeContent() {
         tracks={dawState.tracks || []}
         measures={measures}
       />
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <Settings
+          onClose={() => setShowSettings(false)}
+        />
+      )}
       </div>
   );
 }

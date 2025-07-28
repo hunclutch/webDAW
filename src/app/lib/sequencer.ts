@@ -9,6 +9,7 @@ export class Sequencer {
   private synthesizer: Synthesizer;
   private drumMachine: DrumMachine;
   private isPlaying = false;
+  private isRecording = false;
   private currentTime = 0;
   private startTime = 0;
   private bpm = 120;
@@ -17,6 +18,9 @@ export class Sequencer {
   private playheadPosition = 0;
   private maxMeasures = 60;
   private scheduledNotes: Set<string> = new Set(); // 重複防止用
+  private recordingTrackId: string | null = null;
+  private recordedNotes: Note[] = [];
+  private recordingStartTime = 0;
 
   constructor(
     audioContext: AudioContext,
@@ -96,6 +100,54 @@ export class Sequencer {
 
   getIsPlaying(): boolean {
     return this.isPlaying;
+  }
+
+  getIsRecording(): boolean {
+    return this.isRecording;
+  }
+
+  startRecording(trackId: string) {
+    if (this.isRecording) return;
+    
+    this.recordingTrackId = trackId;
+    this.recordedNotes = [];
+    this.isRecording = true;
+    this.recordingStartTime = this.audioContext.currentTime;
+    
+    console.log('Recording started for track:', trackId);
+  }
+
+  stopRecording(): Note[] {
+    if (!this.isRecording) return [];
+    
+    this.isRecording = false;
+    const notes = [...this.recordedNotes];
+    this.recordedNotes = [];
+    this.recordingTrackId = null;
+    
+    console.log('Recording stopped, recorded notes:', notes);
+    return notes;
+  }
+
+  recordNote(note: string, octave: number, velocity: number = 0.8) {
+    if (!this.isRecording || !this.recordingTrackId) return;
+    
+    const currentTimeInSequence = this.getCurrentTime();
+    const secondsPer16thNote = (60 / this.bpm) / 4;
+    const stepsPerSecond = 1 / secondsPer16thNote;
+    const startStep = Math.floor(currentTimeInSequence * stepsPerSecond);
+    
+    const recordedNote: Note = {
+      id: `recorded-${Date.now()}-${Math.random()}`,
+      note,
+      octave,
+      start: startStep,
+      duration: 4, // デフォルト1拍分（4ステップ）
+      velocity,
+    };
+    
+    this.recordedNotes.push(recordedNote);
+    console.log('Note recorded:', recordedNote);
   }
 
   private scheduleTracksPlayback() {
@@ -197,6 +249,7 @@ export class Sequencer {
       }
     }
   }
+
 
   private startPlayheadUpdate() {
     this.intervalId = window.setInterval(() => {

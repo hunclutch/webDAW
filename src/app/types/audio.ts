@@ -32,6 +32,7 @@ export interface SynthSettings {
   filterQ: number;
 }
 
+
 export interface DrumPattern {
   steps: DrumStep[];
   length: number;
